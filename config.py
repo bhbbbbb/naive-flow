@@ -1,3 +1,5 @@
+from io import StringIO
+from .writable import Writable
 from .namespace_dict import NamespaceDict
 
 class Unimplemented:
@@ -22,9 +24,13 @@ class BaseConfig(NamespaceDict):
         assert hasattr(self, name), f"attribute: {name} must be specified or overrided"
         return
     
-    def display(self):
-        print("Configuration:")
+    def display(self, file: Writable = None):
+        sio = StringIO()
+        sio.write("Configuration:\n")
         for attr, value in dict(self).items():
-            print("{:30} {}".format(attr, value))
-        print("\n")
+            sio.write(f"{attr:30} {value}\n")
+        sio.write("\n")
+        print(sio.getvalue(), file=file, end="")
+        sio.close()
+        return
     

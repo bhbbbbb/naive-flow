@@ -1,13 +1,22 @@
+from typing import Callable
+from torch.optim import Optimizer
 from ..config import BaseConfig, UNIMPLEMENTED
-
 class ModelUtilsConfig(BaseConfig):
+    """
+        for optimizer:
+            Examples:
+                >>> lambda params, config: Adam(params, lr=config.learing_rate)
+    """
 
     # device
     device = UNIMPLEMENTED
 
-    # IMAGE_SHAPE = (224, 224)
+    optimizer: Callable[[any, BaseConfig], Optimizer] = UNIMPLEMENTED
 
-    learning_rate = UNIMPLEMENTED
+    # this is for display and log
+    _optimizer_name: str = UNIMPLEMENTED
+
+    learning_rate: float = UNIMPLEMENTED
 
 
     # num of epochs per checkpoints

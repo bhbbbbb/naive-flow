@@ -6,7 +6,7 @@ class Logger:
     FORMAT = (
         "%(asctime)s %(levelname)s\nFile \"%(pathname)s\", at line %(lineno)d, "
         "in %(module)s, %(funcName)s \n"
-        "\t%(message)s" "\n"
+        "%(message)s" "\n"
     )
 
     def __init__(self, log_file_root: str):

@@ -168,24 +168,52 @@ class HistoryUtils:
 class BaseModelUtils:
 
     history: History
-    logger: Logger # TODO make some msg print to log
+    logger: Logger
 
-    def __init__(self, model: nn.Module, config: ModelUtilsConfig, optimizer: Optimizer = None):
+    def __init__(
+            self,
+            model: nn.Module,
+            config: ModelUtilsConfig,
+            optimizer: Optimizer,
+            start_epoch: int,
+            root: str,
+            history_utils: HistoryUtils,
+            logger: Logger,
+        ):
 
         self.model = model
         self.model.to(config.device)
         self.config = config
-
-        self.optimizer = optimizer or torch.optim.Adam(model.parameters(), lr=config.learning_rate)
+        config.display(logger)
+        self.optimizer = optimizer
         self.criterion = torch.nn.CrossEntropyLoss()
-        self.start_epoch = 0
+        self.start_epoch = start_epoch
+        self.root = root
+        self.history_utils = history_utils
+        self.logger = logger
+        return
 
+    @classmethod
+    def start_new_training(cls, model: nn.Module, config: ModelUtilsConfig,
+                            optimizer: Optimizer = None):
+        
+        optimizer = optimizer or config.optimizer(model.parameters(), config)
         # init for history and log
         time_str = formatted_now()
-        self.root = os.path.join(self.config.log_dir, time_str)
-        self.history_utils = HistoryUtils(root=self.root)
-        # self.logger = ? TODO
-        return
+        root = os.path.join(config.log_dir, time_str)
+        os.makedirs(root, exist_ok=True)
+        history_utils = HistoryUtils(root=root)
+        logger = Logger(root)
+        
+        return cls(
+            model = model,
+            config = config,
+            optimizer = optimizer,
+            start_epoch = 0,
+            root = root,
+            history_utils = history_utils,
+            logger = logger,
+        )
 
     @classmethod
     def load_checkpoint(cls, model: nn.Module, checkpoint_path: str,
@@ -204,18 +232,27 @@ class BaseModelUtils:
         tem = torch.load(checkpoint_path)
         checkpoint = ModelStates(**tem)
 
-        new = cls(model, config, optimizer)
+        # new = cls(model, config, optimizer)
 
-        new.model.load_state_dict(checkpoint.model_state_dict)
-        new.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-        new.start_epoch = checkpoint.start_epoch
+        model.load_state_dict(checkpoint.model_state_dict)
+        model.to(config.device)
+        optimizer = optimizer or config.optimizer(model.parameters(), config)
+        optimizer.load_state_dict(checkpoint.optimizer_state_dict)
         
-        new.root = os.path.dirname(checkpoint_path)
-        new.logger = Logger(new.root)
-        new.logger.reset_log_file_root(new.root)
-        new.history_utils = HistoryUtils.load_history(new.root, new.start_epoch, new.logger)
-        new.logger.log(f"Checkpoint {os.path.basename(checkpoint_path)} is loaded.")
-        return new
+        root = os.path.dirname(checkpoint_path)
+        logger = Logger(root)
+        start_epoch = checkpoint.start_epoch
+        history_utils = HistoryUtils.load_history(root, start_epoch, logger)
+        logger.log(f"Checkpoint {os.path.basename(checkpoint_path)} is loaded.")
+        return cls(
+            model = model,
+            config = config,
+            optimizer = optimizer,
+            start_epoch = start_epoch,
+            root = root,
+            history_utils = history_utils,
+            logger = logger,
+        )
 
     @classmethod
     def load_last_checkpoint_from_dir(cls, model: nn.Module, config: ModelUtilsConfig,
@@ -296,7 +333,7 @@ class BaseModelUtils:
         os.makedirs(self.root, exist_ok=True)
         path = os.path.join(self.root, name)
         torch.save(tem, path)
-        print(f"Checkpoint: {name} is saved.")
+        self.logger.log(f"Checkpoint: {name} is saved.")
         self.history_utils.history["checkpoints"][cur_epoch + 1] = name
         return name
     
@@ -336,7 +373,7 @@ class BaseModelUtils:
         counter = 0
 
         for epoch in range(self.start_epoch, epochs):
-            print(f"Epoch: {epoch + 1} / {epochs}")
+            self.logger.log(f"Epoch: {epoch + 1} / {epochs}")
             train_loss, train_acc = self._train_epoch(trainset)
             valid_loss, valid_acc = self._eval_epoch(validset)
 
@@ -355,7 +392,7 @@ class BaseModelUtils:
                             {counter} / {self.config.early_stopping_threshold}")
                     
                     if counter == self.config.early_stopping_threshold:
-                        print("Early stopping!")
+                        self.logger.log("Early stopping!")
                         self._save(epoch, stat)
                         break
                 else:
@@ -376,7 +413,7 @@ class BaseModelUtils:
             if epoch != epochs - 1:
                 self.history_utils.log_history(stat)
 
-        print("Training is finish")
+        self.logger.log(f"Training is finish for epochs: {epochs}")
         test_loss, test_acc = self._eval_epoch(testset)
         stat.test_loss = test_loss
         stat.test_acc = test_acc

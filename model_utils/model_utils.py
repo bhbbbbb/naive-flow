@@ -232,8 +232,6 @@ class BaseModelUtils:
         tem = torch.load(checkpoint_path)
         checkpoint = ModelStates(**tem)
 
-        # new = cls(model, config, optimizer)
-
         model.load_state_dict(checkpoint.model_state_dict)
         model.to(config.device)
         optimizer = optimizer or config.optimizer(model.parameters(), config)

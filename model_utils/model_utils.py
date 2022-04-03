@@ -15,9 +15,9 @@ from torch.optim import Optimizer
 from torch.utils.data import Dataset
 import pandas as pd
 
-from .config import BaseConfig
+from .config import ModelUtilsConfig
 from ..logger import Logger
-from .writable import Writable
+from ..writable import Writable
 
 class Stat:
     train_loss: float
@@ -53,7 +53,7 @@ class ModelStates(Namespace):
     # epoch to start from (0 is the first)
     start_epoch: int
 
-    # config: BaseConfig
+    # config: ModelUtilsConfig
 
     ########## torch built-in model states ############
     model_state_dict: dict
@@ -170,32 +170,32 @@ class BaseModelUtils:
     history: History
     logger: Logger # TODO make some msg print to log
 
-    def __init__(self, model: nn.Module, config: BaseConfig, optimizer: Optimizer = None):
+    def __init__(self, model: nn.Module, config: ModelUtilsConfig, optimizer: Optimizer = None):
 
         self.model = model
-        self.model.to(config.DEVICE)
+        self.model.to(config.device)
         self.config = config
 
-        self.optimizer = optimizer or torch.optim.Adam(model.parameters(), lr=config.LEARNING_RATE)
+        self.optimizer = optimizer or torch.optim.Adam(model.parameters(), lr=config.learning_rate)
         self.criterion = torch.nn.CrossEntropyLoss()
         self.start_epoch = 0
 
         # init for history and log
         time_str = formatted_now()
-        self.root = os.path.join(self.config.LOG_DIR, time_str)
+        self.root = os.path.join(self.config.log_dir, time_str)
         self.history_utils = HistoryUtils(root=self.root)
         # self.logger = ? TODO
         return
 
     @classmethod
     def load_checkpoint(cls, model: nn.Module, checkpoint_path: str,
-                        config: BaseConfig, optimizer: Optimizer = None):
+                        config: ModelUtilsConfig, optimizer: Optimizer = None):
         """init ModelUtils class with the saved model (or checkpoint)
 
         Args:
             model (nn.Module): model architecture
             checkpoint_path (str): path of saved model (or checkpoint)
-            config (BaseConfig): config
+            config (ModelUtilsConfig): config
 
         """
 
@@ -204,7 +204,7 @@ class BaseModelUtils:
         tem = torch.load(checkpoint_path)
         checkpoint = ModelStates(**tem)
 
-        new = BaseModelUtils(model, config, optimizer)
+        new = cls(model, config, optimizer)
 
         new.model.load_state_dict(checkpoint.model_state_dict)
         new.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
@@ -218,7 +218,7 @@ class BaseModelUtils:
         return new
 
     @classmethod
-    def load_last_checkpoint_from_dir(cls, model: nn.Module, config: BaseConfig,
+    def load_last_checkpoint_from_dir(cls, model: nn.Module, config: ModelUtilsConfig,
                                     dir_path: str, optimizer: Optimizer = None):
 
         PATTERN = r".+?_epoch_(\d+)"
@@ -247,7 +247,8 @@ class BaseModelUtils:
         )
 
     @classmethod
-    def load_last_checkpoint(cls, model: nn.Module, config: BaseConfig, optimizer: Optimizer = None):
+    def load_last_checkpoint(cls, model: nn.Module, config: ModelUtilsConfig,
+                                optimizer: Optimizer = None):
 
         TIME_FORMAT_PATTERN = r"^\d{8}T\d{2}-\d{2}-\d{2}"
         def is_timeformatted_not_empty(name: str) -> bool:
@@ -261,17 +262,17 @@ class BaseModelUtils:
             if not match:
                 return False
             
-            path = os.path.join(config.LOG_DIR, name)
+            path = os.path.join(config.log_dir, name)
             if len(os.listdir(path)) == 0: # if empty
                 os.removedirs(path)
                 return False
             return True
 
-        arr = [dir_name for dir_name in os.listdir(config.LOG_DIR)
+        arr = [dir_name for dir_name in os.listdir(config.log_dir)
                                             if is_timeformatted_not_empty(dir_name)]
 
         last_train_root = max(arr)
-        last_train_root = os.path.join(config.LOG_DIR, last_train_root)
+        last_train_root = os.path.join(config.log_dir, last_train_root)
         return cls.load_last_checkpoint_from_dir(
             model,
             dir_path=last_train_root,
@@ -349,11 +350,11 @@ class BaseModelUtils:
             stat.display()
             if valid_loss >= min_valid_loss:
                 counter += 1
-                if self.config.EARLY_STOPPING:
+                if self.config.early_stopping:
                     print(f"Early stopping counter:\
-                            {counter} / {self.config.EARLY_STOPPING_THRESHOLD}")
+                            {counter} / {self.config.early_stopping_threshold}")
                     
-                    if counter == self.config.EARLY_STOPPING_THRESHOLD:
+                    if counter == self.config.early_stopping_threshold:
                         print("Early stopping!")
                         self._save(epoch, stat)
                         break
@@ -367,8 +368,8 @@ class BaseModelUtils:
                 self._save(epoch, stat)
             
             elif (
-                self.config.EPOCHS_PER_CHECKPOINT
-                and (epoch + 1) % self.config.EPOCHS_PER_CHECKPOINT == 0
+                self.config.epochs_per_checkpoint
+                and (epoch + 1) % self.config.epochs_per_checkpoint == 0
             ):
                 self._save(epoch, stat)
 
@@ -382,10 +383,6 @@ class BaseModelUtils:
         stat.display()
         return self.history_utils.log_history(stat)
     
-    
-    def inference(self, *args, **kwargs):
-        raise NotImplementedError
-        
     
     def plot_history(self):
         self.history_utils.plot()

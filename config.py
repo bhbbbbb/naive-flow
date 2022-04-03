@@ -5,6 +5,7 @@ class Unimplemented:
         return
 
 UNIMPLEMENTED = Unimplemented()
+"""`NotImplementedError` would raise when someone try to reach this constant"""
 
 class BaseConfig(NamespaceDict):
     """simple wrap of NamespaceDict with utils for config"""

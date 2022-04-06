@@ -404,7 +404,7 @@ class BaseModelUtils:
             
             elif (
                 self.config.epochs_per_checkpoint
-                and (epoch + 1) % self.config.epochs_per_checkpoint == 0
+                and (epoch + 1 - self.start_epoch) % self.config.epochs_per_checkpoint == 0
             ):
                 self._save(epoch, stat)
 

@@ -129,39 +129,108 @@ class HistoryUtils:
         
         return self.path
     
-    def plot(self):
-        HistoryUtils.plot_history(self.path, self.root)
-        return
-
     @staticmethod
-    def _plot(title: str, train_data: list, valid_data: list, output_dir: str) -> str:
+    def _plot(title: str, train_data: list, valid_data: list, output_dir: str,
+                y_lim: Tuple[float, float] = None,
+                show: bool = False, save: bool = True) -> str:
+        """plot history graph
+
+        Args:
+            title (str): title of image
+            train_data (list): train_data
+            valid_data (list): valid_data
+            output_dir (str): dir to store the output image
+            y_lim (Tuple[float, float]): use specified scale of y instead of auto-scale.
+            show (bool): whether show the image. Defaults to False.
+            save (bool): whether save the image. Defaults to True.
+                Note that (show or save) must be True.
+
+        Returns:
+            str: path of saved image, return None when save is False.
+        """
+        assert show or save, "show or save must not be both False."
         plt.figure(figsize=(10,5))
         plt.plot(train_data, label="train")
         plt.plot(valid_data, label="valid")
+        if y_lim is not None:
+            plt.ylim(y_lim)
         plt.title(title)
         plt.xlabel("epochs")
         plt.legend()
         path = os.path.join(output_dir, title.lower())
-        plt.savefig(path)
-        plt.show()
+        if save:
+            plt.savefig(path)
+        if show:
+            plt.show(block=False)
         return path
 
 
     @staticmethod
-    def plot_history(history_path: str, output_dir: str):
+    def plot_history(history_path: str, output_dir: str,
+                    loss_uplimit: float = None,
+                    acc_autoscale: bool = False,
+                    show: bool = False, save: bool = True):
         """plot the loss-epoch figure
 
         Args:
             history_path (str): file of history (in json)
             output_dir (str): dir to export the result figure
+            loss_uplimit (float): scale the upper limit to the specfied value.
+                Defaluts to None (autoscale).
+            acc_autoscale (bool) whether autoscale the accuracy. Defaults to False.
+            show (bool): whether show the image. Defaults to False.
+            save (bool): whether save the image. Defaults to True.
+                Note that (show or save) must be True.
         """
         with open(history_path, "r") as fin:
             history: History = json.load(fin)
         
         df = pd.DataFrame(history["history"])
-        HistoryUtils._plot("Loss", df["train_loss"].tolist(), df["valid_loss"].tolist(), output_dir)
-        HistoryUtils._plot("Accuracy", df["train_acc"].tolist(),
-                            df["valid_acc"].tolist(), output_dir)
+        loss_y_lim = None if loss_uplimit is None else (0, loss_uplimit)
+        acc_y_lim =  None if acc_autoscale else (0.0, 1.0)
+
+        HistoryUtils._plot(
+            "Loss",
+            df["train_loss"].tolist(),
+            df["valid_loss"].tolist(),
+            output_dir,
+            y_lim=loss_y_lim,
+            show=show,
+            save=save
+        )
+        HistoryUtils._plot(
+            "Accuracy",
+            df["train_acc"].tolist(),
+            df["valid_acc"].tolist(),
+            output_dir,
+            y_lim=acc_y_lim,
+            show=show,
+            save=save
+        )
+        return
+
+    def plot(self, loss_uplimit: float = None, acc_autoscale: bool = False,
+                show: bool = False, save: bool = True):
+        """plot the loss-epoch figure
+
+        Args:
+            history_path (str): file of history (in json)
+            output_dir (str): dir to export the result figure
+            loss_uplimit (float): scale the upper limit to the specfied value.
+                Defaluts to None (autoscale).
+            acc_autoscale (bool) whether autoscale the accuracy. Defaults to False.
+            show (bool): whether show the image. Defaults to False.
+            save (bool): whether save the image. Defaults to True.
+                Note that (show or save) must be True.
+        """
+        HistoryUtils.plot_history(
+            self.path,
+            self.root,
+            loss_uplimit=loss_uplimit,
+            acc_autoscale=acc_autoscale,
+            show=show,
+            save=save,
+        )
         return
     
 
@@ -419,8 +488,15 @@ class BaseModelUtils:
         return self.history_utils.log_history(stat)
     
     
-    def plot_history(self):
-        self.history_utils.plot()
+    def plot_history(self, loss_uplimit: float = None, acc_autoscale: bool = False,
+                        show: bool = False, save: bool = True):
+        self.history_utils.plot(
+            loss_uplimit=loss_uplimit,
+            acc_autoscale=acc_autoscale,
+            show=show,
+            save=save,
+        )
+        return
 
 
 def formatted_now():

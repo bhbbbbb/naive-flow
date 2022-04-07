@@ -1,35 +1,30 @@
-from typing import Callable
-from torch.optim import Optimizer
 from ..config import BaseConfig, UNIMPLEMENTED
 class ModelUtilsConfig(BaseConfig):
-    """
-        for optimizer:
-            Examples:
-                >>> lambda params, config: Adam(params, lr=config.learing_rate)
-    """
 
-    # device
     device = UNIMPLEMENTED
-
-    optimizer: Callable[[any, BaseConfig], Optimizer] = UNIMPLEMENTED
-
-    # this is for display and log
-    _optimizer_name: str = UNIMPLEMENTED
+    """Device to use, cpu or gpu"""
 
     learning_rate: float = UNIMPLEMENTED
 
-
-    # num of epochs per checkpoints
-    # e.g. 1 stand for save model every epoch
-    #      0 for not save until finish
     epochs_per_checkpoint: int = UNIMPLEMENTED
+    """num of epochs per checkpoints
 
-    # dir for saving checkpoints and log files
+        Example:
+            1: stand for save model every epoch
+            0: for not save until finish
+    """
+
+    save_best: bool = UNIMPLEMENTED
+    """set True to save every time when the model reach highest val_acc"""
+
     log_dir: str = UNIMPLEMENTED
+    """dir for saving checkpoints and log files"""
 
     early_stopping: bool = UNIMPLEMENTED
+    """whether enable early stopping"""
 
-    # only matter when EARLY_STOPPING is set to True
     early_stopping_threshold: int = UNIMPLEMENTED
+    """Threshold for early stopping mode. Only matter when EARLY_STOPPING is set to True."""
 
     num_class: int = UNIMPLEMENTED
+    """number of classes"""

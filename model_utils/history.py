@@ -81,7 +81,7 @@ class HistoryUtils:
             history_log_name = tem[0]
 
             history_log_path = os.path.join(root, history_log_name)
-            with open(history_log_path, "r") as fin:
+            with open(history_log_path, "r", encoding="utf-8") as fin:
                 history = json.load(fin)
                 history["root"] = root
                 if len(history["history"]) > start_epoch:
@@ -102,7 +102,7 @@ class HistoryUtils:
         self.history["root"] = self.root
 
         os.makedirs(self.root, exist_ok=True)
-        with open(self.path, "w") as fout:
+        with open(self.path, "w", encoding="utf-8") as fout:
             json.dump(self.history, fout, indent=4)
         
         return self.path
@@ -160,7 +160,7 @@ class HistoryUtils:
             save (bool): whether save the image. Defaults to True.
                 Note that (show or save) must be True.
         """
-        with open(history_path, "r") as fin:
+        with open(history_path, "r", encoding="utf-8") as fin:
             history: History = json.load(fin)
         
         df = pd.DataFrame(history["history"])

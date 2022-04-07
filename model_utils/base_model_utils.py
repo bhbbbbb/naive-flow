@@ -4,7 +4,7 @@ from typing import Tuple
 from datetime import datetime
 from argparse import Namespace
 import torch
-import torch.nn as nn
+from torch import nn
 from torch.optim import Optimizer
 from torch.utils.data import Dataset
 from .config import ModelUtilsConfig
@@ -290,7 +290,6 @@ class BaseModelUtils:
                 elif (
                     self.config.epochs_per_checkpoint
                     and (epoch + 1 - self.start_epoch) % self.config.epochs_per_checkpoint == 0
-                    and not saved
                 ):
                     self._save(epoch, stat)
 

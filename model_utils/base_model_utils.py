@@ -61,9 +61,9 @@ class BaseModelUtils:
         self.criterion = self._get_criterion(config)
 
         # log information
-        print(model, file=logger)
-        print(optimizer, file=logger)
-        config.display(logger)
+        print(model, file=logger.file)
+        print(optimizer, file=logger.file)
+        config.display(logger.file)
         return
 
     @staticmethod
@@ -228,12 +228,14 @@ class BaseModelUtils:
         """
         raise NotImplementedError
     
-    def train(self, epochs: int, trainset: Dataset, validset: Dataset, testset: Dataset) -> str:
+    def train(self, epochs: int, trainset: Dataset, validset: Dataset,
+                testset: Dataset = None) -> str:
         """start training
 
         Args:
             epochs (int): defalut to None, if None. train to the epochs store in checkpoint.
             Specify to change the target epochs
+            testset (Dataset): Optional.
 
         Returns:
             str: json path as the history
@@ -297,10 +299,11 @@ class BaseModelUtils:
                 self.history_utils.log_history(stat)
 
         self.logger.log(f"Training is finish for epochs: {epochs}")
-        test_loss, test_acc = self._eval_epoch(testset)
-        stat.test_loss = test_loss
-        stat.test_acc = test_acc
-        stat.display()
+        if testset is not None:
+            test_loss, test_acc = self._eval_epoch(testset)
+            stat.test_loss = test_loss
+            stat.test_acc = test_acc
+            stat.display()
         return self.history_utils.log_history(stat)
     
     

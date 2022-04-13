@@ -9,7 +9,7 @@ from torch.optim import Optimizer
 from torch.utils.data import Dataset
 from .config import ModelUtilsConfig
 from .history import HistoryUtils, Stat
-from ..logger import Logger
+from .base.logger import Logger
 
 
 class ModelStates(Namespace):

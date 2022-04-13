@@ -8,7 +8,7 @@ import re
 import json
 import matplotlib.pyplot as plt
 import pandas as pd
-from ..writable import Writable
+from .base.writable import Writable
 
 class Stat:
     train_loss: float

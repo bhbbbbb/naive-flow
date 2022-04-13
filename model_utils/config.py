@@ -1,4 +1,4 @@
-from ..config import BaseConfig, UNIMPLEMENTED
+from .base.config import BaseConfig, UNIMPLEMENTED
 class ModelUtilsConfig(BaseConfig):
 
     device = UNIMPLEMENTED

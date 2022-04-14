@@ -228,13 +228,15 @@ class BaseModelUtils:
         """
         raise NotImplementedError
     
-    def train(self, epochs: int, trainset: Dataset, validset: Dataset,
+    def train(self, epochs: int, trainset: Dataset, validset: Dataset = None,
                 testset: Dataset = None) -> str:
         """start training
 
         Args:
             epochs (int): defalut to None, if None. train to the epochs store in checkpoint.
             Specify to change the target epochs
+            validset (Dataset): Optional but unlike testset it is not supposed to be omit,
+                unless you are testing your model by overfit it or something else.
             testset (Dataset): Optional.
 
         Returns:
@@ -244,6 +246,11 @@ class BaseModelUtils:
         assert epochs > self.start_epoch,\
             f"expect epochs > {self.start_epoch}, got: epochs={epochs}"
         
+        if validset is None:
+            self.logger.warning(
+                "Warning: You are Not passing the validset\n"
+                "make sure you know what yor are doing."
+            )
         # counting for early stopping
         highest_valid_acc = 0.0
         counter = 0
@@ -252,7 +259,8 @@ class BaseModelUtils:
         for epoch in range(self.start_epoch, epochs):
             self.logger.log(f"Epoch: {epoch + 1} / {epochs}")
             train_loss, train_acc = self._train_epoch(trainset)
-            valid_loss, valid_acc = self._eval_epoch(validset)
+            valid_loss, valid_acc = self._eval_epoch(validset)\
+                if validset is not None else (train_loss, train_acc)
 
             stat = Stat(
                 epoch=epoch + 1,

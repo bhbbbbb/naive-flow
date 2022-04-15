@@ -77,6 +77,8 @@ class HistoryUtils:
 
         if len(tem) == 0:
             logger.write(f"Warning: No history.json in {root}")
+            history = None
+            history_log_path = None
         else:
             history_log_name = tem[0]
 

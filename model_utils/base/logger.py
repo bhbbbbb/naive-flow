@@ -50,13 +50,26 @@ class _Logger:
         return
 
     
+class _LoggerLike:
+
+    def __init__(self, *args):
+        return
+
+    def log(self, msg: str):
+        return
+    
+    def write(self, msg: str):
+        return
+    
+    def warning(self, msg: str):
+        return
 
 
 class Logger:
 
-    def __init__(self, log_file_root: str):
+    def __init__(self, log_file_root: str = None):
         self._c_logger = _Logger()
-        self._f_logger = _Logger(log_file_root)
+        self._f_logger = _Logger(log_file_root) if log_file_root is not None else _LoggerLike()
         return
 
     @property

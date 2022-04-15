@@ -83,7 +83,7 @@ class BaseModelUtils:
         root = os.path.join(config.log_dir, time_str)
         os.makedirs(root, exist_ok=True)
         history_utils = HistoryUtils(root=root)
-        logger = Logger(root)
+        logger = Logger(root) if config.logging else Logger()
         
         return cls(
             model = model,
@@ -119,7 +119,7 @@ class BaseModelUtils:
         optimizer.load_state_dict(checkpoint.optimizer_state_dict)
         
         root = os.path.dirname(checkpoint_path)
-        logger = Logger(root)
+        logger = Logger(root) if config.logging else Logger()
         start_epoch = checkpoint.start_epoch
         history_utils = HistoryUtils.load_history(root, start_epoch, logger)
         logger.log(f"Checkpoint {os.path.basename(checkpoint_path)} is loaded.")
@@ -163,6 +163,10 @@ class BaseModelUtils:
 
     @classmethod
     def load_last_checkpoint(cls, model: nn.Module, config: ModelUtilsConfig):
+
+        assert config.log_dir is not None, (
+            "when log_dir is set to None, load_last_checkpoint is not available"
+        )
 
         TIME_FORMAT_PATTERN = r"^\d{8}T\d{2}-\d{2}-\d{2}"
         def is_timeformatted_not_empty(name: str) -> bool:

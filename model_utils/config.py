@@ -20,11 +20,11 @@ class ModelUtilsConfig(BaseConfig):
     log_dir: str = UNIMPLEMENTED
     """dir for saving checkpoints and log files"""
 
+    logging: bool = UNIMPLEMENTED
+    """whether log to log.log. It's useful to turn this off when inference"""
+
     early_stopping: bool = UNIMPLEMENTED
     """whether enable early stopping"""
 
     early_stopping_threshold: int = UNIMPLEMENTED
     """Threshold for early stopping mode. Only matter when EARLY_STOPPING is set to True."""
-
-    num_class: int = UNIMPLEMENTED
-    """number of classes"""

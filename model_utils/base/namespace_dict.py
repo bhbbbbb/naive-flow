@@ -19,3 +19,6 @@ class NamespaceDict(Namespace):
         for a_dir in dir(self):
             if not a_dir.startswith("__") and not callable(getattr(self, a_dir)):
                 yield a_dir, self.__getitem__(a_dir)
+
+    def asdict(self) -> dict:
+        return dict(self)

@@ -1,7 +1,3 @@
-try:
-    from typing import TypedDict
-except ImportError: # for python < 3.8
-    from typing_extensions import TypedDict
 from typing import List, Tuple
 import os
 import re
@@ -9,6 +5,7 @@ import json
 import matplotlib.pyplot as plt
 import pandas as pd
 from .base.writable import Writable
+from .base.namespace_dict import NamespaceDict
 
 class Stat:
     train_loss: float
@@ -40,7 +37,7 @@ class Stat:
         return
 
 
-class History(TypedDict):
+class History(NamespaceDict):
 
     # root of log dir
     root: str
@@ -48,6 +45,11 @@ class History(TypedDict):
     history: List[dict] # List of Stat in dict format
 
     checkpoints: dict
+
+    def __init__(self, root: str, history: List[dict], checkpoints: dict):
+        self.root = root
+        self.history = history
+        self.checkpoints = checkpoints
 
 
 class HistoryUtils:
@@ -84,10 +86,12 @@ class HistoryUtils:
 
             history_log_path = os.path.join(root, history_log_name)
             with open(history_log_path, "r", encoding="utf-8") as fin:
-                history = json.load(fin)
-                history["root"] = root
-                if len(history["history"]) > start_epoch:
-                    history["history"] = history["history"][:start_epoch]
+                tem_dict = json.load(fin)
+                history = History(**tem_dict)
+
+                history.root = root
+                if len(history.history) > start_epoch:
+                    history.history = history.history[:start_epoch]
             
         return cls(root=root, path=history_log_path, history=history)
 
@@ -100,12 +104,12 @@ class HistoryUtils:
         Returns:
             str: path to the log file history.json
         """
-        self.history["history"].append(vars(stat))
-        self.history["root"] = self.root
+        self.history.history.append(vars(stat))
+        self.history.root = self.root
 
         os.makedirs(self.root, exist_ok=True)
         with open(self.path, "w", encoding="utf-8") as fout:
-            json.dump(self.history, fout, indent=4)
+            json.dump(self.history.asdict(), fout, indent=4)
         
         return self.path
     
@@ -163,9 +167,10 @@ class HistoryUtils:
                 Note that (show or save) must be True.
         """
         with open(history_path, "r", encoding="utf-8") as fin:
-            history: History = json.load(fin)
+            tem_dict = json.load(fin)
+            history = History(**tem_dict)
         
-        df = pd.DataFrame(history["history"])
+        df = pd.DataFrame(history.history)
         loss_y_lim = None if loss_uplimit is None else (0, loss_uplimit)
         acc_y_lim =  None if acc_autoscale else (0.0, 1.0)
 

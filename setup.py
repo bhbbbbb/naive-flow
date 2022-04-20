@@ -1,9 +1,9 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
-    name = "pytorch-model-utils",
-    version="0.1.0",
-    packages=["model_utils"],
+    name="pytorch-model-utils",
+    version="0.1.1",
+    packages=find_packages(),
     license="MIT",
     description="Utils for pytorch"
 )

@@ -33,7 +33,6 @@ class BaseModelUtils:
     model: nn.Module
     config: ModelUtilsConfig
     optimizer: Optimizer
-    criterion: nn.Module
     start_epoch: int
     root: str
     history_utils: HistoryUtils
@@ -58,7 +57,6 @@ class BaseModelUtils:
         self.root = root
         self.history_utils = history_utils
         self.logger = logger
-        self.criterion = self._get_criterion(config)
 
         # log information
         print(model, file=logger.file)
@@ -68,10 +66,6 @@ class BaseModelUtils:
 
     @staticmethod
     def _get_optimizer(model: nn.Module, config: ModelUtilsConfig) -> Optimizer:
-        raise NotImplementedError
-
-    @staticmethod
-    def _get_criterion(config: ModelUtilsConfig) -> nn.Module:
         raise NotImplementedError
 
     @classmethod

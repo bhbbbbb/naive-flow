@@ -252,7 +252,7 @@ class BaseModelUtils:
                 "make sure you know what yor are doing."
             )
         # counting for early stopping
-        highest_valid_val = 0.0
+        best_valid_val = 0.0 if self.config.enable_accuracy else 999999999.9
         counter = 0
 
         def unpack(loss_acc: Union[float, Tuple[float, float]]):
@@ -277,7 +277,11 @@ class BaseModelUtils:
 
             valid_val = valid_acc if self.config.early_stopping_by_acc else valid_loss
 
-            if valid_val <= highest_valid_val:
+            if (
+                self.config.enable_accuracy and valid_val <= best_valid_val
+                or
+                not self.config.enable_accuracy and valid_val >= best_valid_val
+            ):
                 counter += 1
                 threshold = self.config.early_stopping_threshold\
                                 if self.config.early_stopping else "infinity"
@@ -292,13 +296,13 @@ class BaseModelUtils:
                     self._save(epoch, stat)
                     break
             else:
-                highest_valid_val = valid_val
+                best_valid_val = valid_val
                 counter = 0
             
             if self.config.early_stopping_by_acc:
-                print(f"Current best valid_acc: {highest_valid_val * 100 :.2f} %")
+                print(f"Current best valid_acc: {best_valid_val * 100 :.2f} %")
             else:
-                print(f"Current best valid_loss: {highest_valid_val:.6f}")
+                print(f"Current best valid_loss: {best_valid_val:.6f}")
             
             if epoch == epochs - 1:
                 self._save(epoch, stat)

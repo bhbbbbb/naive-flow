@@ -30,7 +30,10 @@ class ModelUtilsConfig(BaseConfig):
     """Threshold for early stopping mode. Only matter when EARLY_STOPPING is set to True."""
 
     early_stopping_by_acc: bool = UNIMPLEMENTED
-    """early stopping with valid_acc as criterion, cannot be true if enable"""
+    """
+    Early stopping with valid_acc as criterion, cannot be true if enable_accuracy is False.
+    Turn off to use valid_loss as criterion.
+    """
 
     enable_accuracy: bool = UNIMPLEMENTED
     """Whether enable logging accuracy in history. Turn off to use loss only."""

@@ -16,27 +16,47 @@ class Stat:
     test_acc: float
     epoch: int
 
-    def __init__(self, epoch: int, train_loss: float, valid_loss: float,
-                train_acc: float, valid_acc: float):
+    def __init__(
+        self,
+        epoch: int,
+        train_loss: float,
+        valid_loss: float,
+        train_acc: float = None,
+        valid_acc: float = None,
+        test_loss: float = None,
+        test_acc: float = None,
+    ):
         self.epoch = epoch
         self.train_loss = train_loss
         self.valid_loss = valid_loss
         self.train_acc = train_acc
         self.valid_acc = valid_acc
+        self.test_loss = test_loss
+        self.test_acc = test_acc
         return
     
     def display(self):
-        if hasattr(self, "test_loss") and hasattr(self, "test_acc"):
+        
+        if self.test_loss is not None:
             print(f"test_loss: {self.test_loss: .6f}")
-            print(f"test_acc: {self.test_acc * 100: .2f} %")
+            if self.test_acc is not None:
+                print(f"test_acc: {self.test_acc * 100: .2f} %")
         else:
             print(f"train_loss: {self.train_loss: .6f}")
-            print(f"train_acc: {self.train_acc * 100: .2f} %")
             print(f"valid_loss: {self.valid_loss: .6f}")
-            print(f"valid_acc: {self.valid_acc * 100: .2f} %")
+            if self.train_acc is not None:
+                print(f"train_acc: {self.train_acc * 100: .2f} %")
+            if self.valid_acc is not None:
+                print(f"valid_acc: {self.valid_acc * 100: .2f} %")
         return
+    
+    def __iter__(self):
+        for key, value in vars(self).items():
+            if value is not None:
+                yield key, value
 
-
+    def asdict(self):
+        return dict(self)
 class History(NamespaceDict):
 
     # root of log dir
@@ -47,6 +67,7 @@ class History(NamespaceDict):
     checkpoints: dict
 
     def __init__(self, root: str, history: List[dict], checkpoints: dict):
+        super().__init__()
         self.root = root
         self.history = history
         self.checkpoints = checkpoints
@@ -104,7 +125,7 @@ class HistoryUtils:
         Returns:
             str: path to the log file history.json
         """
-        self.history.history.append(vars(stat))
+        self.history.history.append(stat.asdict())
         self.history.root = self.root
 
         os.makedirs(self.root, exist_ok=True)
@@ -150,10 +171,15 @@ class HistoryUtils:
 
 
     @staticmethod
-    def plot_history(history_path: str, output_dir: str,
-                    loss_uplimit: float = None,
-                    acc_autoscale: bool = False,
-                    show: bool = False, save: bool = True):
+    def plot_history(
+        history_path: str,
+        output_dir: str,
+        loss_uplimit: float = None,
+        plot_accuracy: bool = False,
+        acc_autoscale: bool = False,
+        show: bool = False,
+        save: bool = True
+    ):
         """plot the loss-epoch figure
 
         Args:
@@ -161,7 +187,9 @@ class HistoryUtils:
             output_dir (str): dir to export the result figure
             loss_uplimit (float): scale the upper limit to the specfied value.
                 Defaluts to None (autoscale).
-            acc_autoscale (bool) whether autoscale the accuracy. Defaults to False.
+            plot_accuracy (bool): whether plot the accuarcy graph. Defaults to False.
+            acc_autoscale (bool): whether autoscale the accuracy. Defaults to False. When
+                plot_accuracy is set to False, this is not taking effect.
             show (bool): whether show the image. Defaults to False.
             save (bool): whether save the image. Defaults to True.
                 Note that (show or save) must be True.
@@ -183,19 +211,26 @@ class HistoryUtils:
             show=show,
             save=save
         )
-        HistoryUtils._plot(
-            "Accuracy",
-            df["train_acc"].tolist(),
-            df["valid_acc"].tolist(),
-            output_dir,
-            y_lim=acc_y_lim,
-            show=show,
-            save=save
-        )
+        if plot_accuracy:
+            HistoryUtils._plot(
+                "Accuracy",
+                df["train_acc"].tolist(),
+                df["valid_acc"].tolist(),
+                output_dir,
+                y_lim=acc_y_lim,
+                show=show,
+                save=save
+            )
         return
 
-    def plot(self, loss_uplimit: float = None, acc_autoscale: bool = False,
-                show: bool = False, save: bool = True):
+    def plot(
+        self,
+        loss_uplimit: float = None,
+        plot_accuracy: bool = False,
+        acc_autoscale: bool = False,
+        show: bool = False,
+        save: bool = True,
+    ):
         """plot the loss-epoch figure
 
         Args:
@@ -203,7 +238,9 @@ class HistoryUtils:
             output_dir (str): dir to export the result figure
             loss_uplimit (float): scale the upper limit to the specfied value.
                 Defaluts to None (autoscale).
-            acc_autoscale (bool) whether autoscale the accuracy. Defaults to False.
+            plot_accuracy (bool): whether plot the accuarcy graph. Defaults to False.
+            acc_autoscale (bool): whether autoscale the accuracy. Defaults to False. When
+                plot_accuracy is set to False, this is not taking effect.
             show (bool): whether show the image. Defaults to False.
             save (bool): whether save the image. Defaults to True.
                 Note that (show or save) must be True.
@@ -212,6 +249,7 @@ class HistoryUtils:
             self.path,
             self.root,
             loss_uplimit=loss_uplimit,
+            plot_accuracy=plot_accuracy,
             acc_autoscale=acc_autoscale,
             show=show,
             save=save,

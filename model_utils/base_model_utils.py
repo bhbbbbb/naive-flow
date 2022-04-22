@@ -1,6 +1,6 @@
 import os
 import re
-from typing import Tuple
+from typing import Tuple, Union
 from datetime import datetime
 from argparse import Namespace
 import torch
@@ -202,8 +202,8 @@ class BaseModelUtils:
             start_epoch = cur_epoch + 1,
             model_state_dict = self.model.state_dict(),
             optimizer_state_dict = self.optimizer.state_dict(),
-            config = dict(self.config),
-            stat = vars(stat),
+            config = self.config.asdict(),
+            stat = stat.asdict(),
         ))
         now = formatted_now()
         
@@ -216,18 +216,20 @@ class BaseModelUtils:
         return name
     
 
-    def _train_epoch(self, train_dataset: Dataset) -> Tuple[float, float]:
+    def _train_epoch(self, train_dataset: Dataset) -> Union[float, Tuple[float, float]]:
         """train a single epoch
 
         Returns:
+            float: train_loss
             Tuple[float, float]: train_loss, train_acc
         """
         raise NotImplementedError
     
-    def _eval_epoch(self, eval_dataset: Dataset) -> Tuple[float, float]:
+    def _eval_epoch(self, eval_dataset: Dataset) -> Union[float, Tuple[float, float]]:
         """evaluate single epoch
 
         Returns:
+            float: eval_loss
             Tuple[float, float]: eval_loss, eval_acc
         """
         raise NotImplementedError
@@ -256,15 +258,19 @@ class BaseModelUtils:
                 "make sure you know what yor are doing."
             )
         # counting for early stopping
-        highest_valid_acc = 0.0
+        highest_valid_val = 0.0
         counter = 0
-        saved = False
+
+        def unpack(loss_acc: Union[float, Tuple[float, float]]):
+            if isinstance(loss_acc, float):
+                return loss_acc, None
+            return loss_acc
 
         for epoch in range(self.start_epoch, epochs):
             self.logger.log(f"Epoch: {epoch + 1} / {epochs}")
-            train_loss, train_acc = self._train_epoch(trainset)
-            valid_loss, valid_acc = self._eval_epoch(validset)\
-                if validset is not None else (train_loss, train_acc)
+            train_loss, train_acc = unpack(self._train_epoch(trainset))
+            valid_loss, valid_acc = unpack(self._eval_epoch(validset)\
+                if validset is not None else (train_loss, train_acc))
 
             stat = Stat(
                 epoch=epoch + 1,
@@ -275,46 +281,47 @@ class BaseModelUtils:
             )
             stat.display()
 
-            saved = False
+            valid_val = valid_acc if self.config.early_stopping_by_acc else valid_loss
 
-            if valid_acc <= highest_valid_acc:
+            if valid_val <= highest_valid_val:
                 counter += 1
-                if self.config.early_stopping:
-                    print("Early stopping counter:"
-                            f"{counter} / {self.config.early_stopping_threshold}")
-                    
-                    if counter == self.config.early_stopping_threshold:
-                        self.logger.log("Early stopping!")
-                        self._save(epoch, stat)
-                        break
-                else:
-                    print(f"Early stopping counter: {counter} / infinity")
-            else:
-                highest_valid_acc = valid_acc
-                counter = 0
-                if self.config.save_best:
-                    self._save(epoch, stat)
-                    saved = True
-            
-            print(f"Current best valid_acc: {highest_valid_acc * 100 :.2f} %")
-            if not saved:
-                if epoch == epochs - 1:
-                    self._save(epoch, stat)
+                threshold = self.config.early_stopping_threshold\
+                                if self.config.early_stopping else "infinity"
+                print("Early stopping counter:"
+                        f"{counter} / {threshold}")
                 
-                elif (
-                    self.config.epochs_per_checkpoint
-                    and (epoch + 1 - self.start_epoch) % self.config.epochs_per_checkpoint == 0
+                if (
+                    self.config.early_stopping
+                    and counter == self.config.early_stopping_threshold
                 ):
+                    self.logger.log("Early stopping!")
                     self._save(epoch, stat)
+                    break
+            else:
+                highest_valid_val = valid_val
+                counter = 0
+            
+            if self.config.early_stopping_by_acc:
+                print(f"Current best valid_acc: {highest_valid_val * 100 :.2f} %")
+            else:
+                print(f"Current best valid_loss: {highest_valid_val:.6f}")
+            
+            if epoch == epochs - 1:
+                self._save(epoch, stat)
+            
+            elif (
+                self.config.epochs_per_checkpoint
+                and (epoch + 1 - self.start_epoch) % self.config.epochs_per_checkpoint == 0
+                or (self.config.save_best and counter == 0)
+            ):
+                self._save(epoch, stat)
 
             if epoch != epochs - 1:
                 self.history_utils.log_history(stat)
 
         self.logger.log(f"Training is finish for epochs: {epochs}")
         if testset is not None:
-            test_loss, test_acc = self._eval_epoch(testset)
-            stat.test_loss = test_loss
-            stat.test_acc = test_acc
+            stat.test_loss, stat.test_acc = unpack(self._eval_epoch(testset))
             stat.display()
         return self.history_utils.log_history(stat)
     
@@ -323,6 +330,7 @@ class BaseModelUtils:
                         show: bool = False, save: bool = True):
         self.history_utils.plot(
             loss_uplimit=loss_uplimit,
+            plot_accuracy=self.config.enable_accuracy,
             acc_autoscale=acc_autoscale,
             show=show,
             save=save,

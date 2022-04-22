@@ -1,4 +1,4 @@
-from .base.config import BaseConfig, UNIMPLEMENTED
+from .base.config import BaseConfig, UNIMPLEMENTED, register_checking_hook
 class ModelUtilsConfig(BaseConfig):
 
     device = UNIMPLEMENTED
@@ -28,3 +28,16 @@ class ModelUtilsConfig(BaseConfig):
 
     early_stopping_threshold: int = UNIMPLEMENTED
     """Threshold for early stopping mode. Only matter when EARLY_STOPPING is set to True."""
+
+    early_stopping_by_acc: bool = UNIMPLEMENTED
+    """early stopping with valid_acc as criterion, cannot be true if enable"""
+
+    enable_accuracy: bool = UNIMPLEMENTED
+    """Whether enable logging accuracy in history. Turn off to use loss only."""
+
+    @register_checking_hook
+    def check_acc(self):
+        if self.early_stopping_by_acc:
+            assert self.enable_accuracy,\
+                "have to set enable_accuracy to True to enable early_stopping_by_acc"
+    

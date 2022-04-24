@@ -51,6 +51,7 @@ class _Logger:
 
     
 class _LoggerLike:
+    # pylint: disable=no-self-use,unused-argument
 
     def __init__(self, *args):
         return

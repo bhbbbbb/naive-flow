@@ -27,6 +27,12 @@ class BaseConfig(NamespaceDict):
             func(self)
         return
 
+    def check(self):
+        self._check()
+        for _, _ in dict(self).items():
+            pass
+        return
+    
     def display(self, file: Writable = None):
         self._check()
         sio = StringIO()

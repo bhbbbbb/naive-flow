@@ -1,6 +1,5 @@
 import os
 import re
-from typing import Tuple, Union
 from datetime import datetime
 from argparse import Namespace
 import torch
@@ -8,8 +7,9 @@ from torch import nn
 from torch.optim import Optimizer
 from torch.utils.data import Dataset
 from .config import ModelUtilsConfig
-from .history import HistoryUtils, Stat
+from .base.history import HistoryUtils, Stat
 from .base.logger import Logger
+from .base.criteria import Criteria
 
 
 class ModelStates(Namespace):
@@ -210,21 +210,19 @@ class BaseModelUtils:
         return name
     
 
-    def _train_epoch(self, train_dataset: Dataset) -> Union[float, Tuple[float, float]]:
+    def _train_epoch(self, train_dataset: Dataset) -> Criteria:
         """train a single epoch
 
         Returns:
-            float: train_loss
-            Tuple[float, float]: train_loss, train_acc
+            Criteria: train_criteria
         """
         raise NotImplementedError
     
-    def _eval_epoch(self, eval_dataset: Dataset) -> Union[float, Tuple[float, float]]:
+    def _eval_epoch(self, eval_dataset: Dataset) -> Criteria:
         """evaluate single epoch
 
         Returns:
-            float: eval_loss
-            Tuple[float, float]: eval_loss, eval_acc
+            Criteria: eval_criteria
         """
         raise NotImplementedError
     
@@ -252,36 +250,24 @@ class BaseModelUtils:
                 "make sure you know what yor are doing."
             )
         # counting for early stopping
-        best_valid_val = 0.0 if self.config.enable_accuracy else 999999999.9
+        best_valid_criteria = None
         counter = 0
-
-        def unpack(loss_acc: Union[float, Tuple[float, float]]):
-            if isinstance(loss_acc, float):
-                return loss_acc, None
-            return loss_acc
 
         for epoch in range(self.start_epoch, epochs):
             self.logger.log(f"Epoch: {epoch + 1} / {epochs}")
-            train_loss, train_acc = unpack(self._train_epoch(trainset))
-            valid_loss, valid_acc = unpack(self._eval_epoch(validset)\
-                if validset is not None else (train_loss, train_acc))
+            train_criteria = self._train_epoch(trainset)
+            valid_criteria = self._eval_epoch(validset)\
+                if validset is not None else train_criteria
 
             stat = Stat(
                 epoch=epoch + 1,
-                train_loss=train_loss,
-                train_acc=train_acc,
-                valid_loss=valid_loss,
-                valid_acc=valid_acc,
+                train_criteria=train_criteria,
+                valid_criteria=valid_criteria,
             )
             stat.display()
 
-            valid_val = valid_acc if self.config.early_stopping_by_acc else valid_loss
 
-            if (
-                self.config.enable_accuracy and valid_val <= best_valid_val
-                or
-                not self.config.enable_accuracy and valid_val >= best_valid_val
-            ):
+            if not valid_criteria.better_than(best_valid_criteria):
                 counter += 1
                 threshold = self.config.early_stopping_threshold\
                                 if self.config.early_stopping else "infinity"
@@ -296,13 +282,10 @@ class BaseModelUtils:
                     self._save(epoch, stat)
                     break
             else:
-                best_valid_val = valid_val
+                best_valid_criteria = valid_criteria
                 counter = 0
             
-            if self.config.early_stopping_by_acc:
-                print(f"Current best valid_acc: {best_valid_val * 100 :.2f} %")
-            else:
-                print(f"Current best valid_loss: {best_valid_val:.6f}")
+            print(f"Current best: {best_valid_criteria.primary_criterion}")
             
             if epoch == epochs - 1:
                 self._save(epoch, stat)
@@ -319,17 +302,14 @@ class BaseModelUtils:
 
         self.logger.log(f"Training is finish for epochs: {epochs}")
         if testset is not None:
-            stat.test_loss, stat.test_acc = unpack(self._eval_epoch(testset))
+            stat.test_criteria = self._eval_epoch(testset)
             stat.display()
+        
         return self.history_utils.log_history(stat)
     
     
-    def plot_history(self, loss_uplimit: float = None, acc_autoscale: bool = False,
-                        show: bool = False, save: bool = True):
+    def plot_history(self, show: bool = False, save: bool = True):
         self.history_utils.plot(
-            loss_uplimit=loss_uplimit,
-            plot_accuracy=self.config.enable_accuracy,
-            acc_autoscale=acc_autoscale,
             show=show,
             save=save,
         )

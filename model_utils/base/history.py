@@ -1,62 +1,62 @@
-from typing import List, Tuple
+from typing import List, Tuple, Union, Dict
 import os
 import re
 import json
 import matplotlib.pyplot as plt
 import pandas as pd
-from .base.writable import Writable
-from .base.namespace_dict import NamespaceDict
+from .writable import Writable
+from .namespace_dict import NamespaceDict
+from .criteria import Criteria, PlotConfig
+
 
 class Stat:
-    train_loss: float
-    valid_loss: float
-    train_acc: float
-    valid_acc: float
-    test_loss: float
-    test_acc: float
+    train_criteria: Criteria
+    valid_criteria: Criteria
+    test_criteria: Criteria
     epoch: int
 
     def __init__(
         self,
         epoch: int,
-        train_loss: float,
-        valid_loss: float,
-        train_acc: float = None,
-        valid_acc: float = None,
-        test_loss: float = None,
-        test_acc: float = None,
+        train_criteria: Criteria,
+        valid_criteria: Criteria = None,
+        test_criteria: Criteria = None,
     ):
         self.epoch = epoch
-        self.train_loss = train_loss
-        self.valid_loss = valid_loss
-        self.train_acc = train_acc
-        self.valid_acc = valid_acc
-        self.test_loss = test_loss
-        self.test_acc = test_acc
+        self.train_criteria = train_criteria
+        self.valid_criteria = valid_criteria
+        self.test_criteria = test_criteria
         return
     
     def display(self):
         
-        if self.test_loss is not None:
-            print(f"test_loss: {self.test_loss: .6f}")
-            if self.test_acc is not None:
-                print(f"test_acc: {self.test_acc * 100: .2f} %")
+        if self.test_criteria is not None:
+            print("Test Criteria:")
+            self.test_criteria.display()
+            
         else:
-            print(f"train_loss: {self.train_loss: .6f}")
-            print(f"valid_loss: {self.valid_loss: .6f}")
-            if self.train_acc is not None:
-                print(f"train_acc: {self.train_acc * 100: .2f} %")
-            if self.valid_acc is not None:
-                print(f"valid_acc: {self.valid_acc * 100: .2f} %")
+            print("Train Criteria:")
+            self.train_criteria.display()
+
+            if self.valid_criteria is not None:
+                print("Valid Criteria:")
+                self.valid_criteria.display()
         return
     
     def __iter__(self):
         for key, value in vars(self).items():
-            if value is not None:
+            if key == "epoch":
                 yield key, value
+            elif value is not None:
+                assert isinstance(value, Criteria), f"got {type(value)}"
+                yield key, value.asdict()
 
     def asdict(self):
         return dict(self)
+    
+    def get_plot_configs(self):
+        return self.train_criteria.get_plot_configs()
+
 class History(NamespaceDict):
 
     # root of log dir
@@ -79,6 +79,7 @@ class HistoryUtils:
     history: History
     root: str
     path: str
+    PLOT_CONFIGS: PlotConfig = None
 
     HISTORY_JSON_PATTERN = r"^\d{8}T\d{2}-\d{2}-\d{2}_history.json"
 
@@ -90,7 +91,7 @@ class HistoryUtils:
 
         self.history = history or History(root=root, history=[], checkpoints={})
         return
-
+    
     @classmethod
     def load_history(cls, root: str, start_epoch: int, logger: Writable):
 
@@ -127,6 +128,8 @@ class HistoryUtils:
         """
         self.history.history.append(stat.asdict())
         self.history.root = self.root
+        if self.PLOT_CONFIGS is None:
+            self.PLOT_CONFIGS = stat.get_plot_configs()
 
         os.makedirs(self.root, exist_ok=True)
         with open(self.path, "w", encoding="utf-8") as fout:
@@ -158,7 +161,12 @@ class HistoryUtils:
         plt.plot(train_data, label="train")
         plt.plot(valid_data, label="valid")
         if y_lim is not None:
-            plt.ylim(y_lim)
+            bottom, top = y_lim
+            if bottom is not None:
+                plt.ylim(bottom=bottom)
+            if top is not None:
+                plt.ylim(top=top)
+            
         plt.title(title)
         plt.xlabel("epochs")
         plt.legend()
@@ -172,86 +180,76 @@ class HistoryUtils:
 
     @staticmethod
     def plot_history(
-        history_path: str,
+        history_or_path: Union[str, History],
         output_dir: str,
-        loss_uplimit: float = None,
-        plot_accuracy: bool = False,
-        acc_autoscale: bool = False,
         show: bool = False,
-        save: bool = True
+        save: bool = True,
+        plot_configs: Dict[str, PlotConfig] = None,
     ):
         """plot the loss-epoch figure
 
         Args:
             history_path (str): file of history (in json)
             output_dir (str): dir to export the result figure
-            loss_uplimit (float): scale the upper limit to the specfied value.
-                Defaluts to None (autoscale).
-            plot_accuracy (bool): whether plot the accuarcy graph. Defaults to False.
-            acc_autoscale (bool): whether autoscale the accuracy. Defaults to False. When
-                plot_accuracy is set to False, this is not taking effect.
             show (bool): whether show the image. Defaults to False.
             save (bool): whether save the image. Defaults to True.
                 Note that (show or save) must be True.
+            plot_configs (dict[key, PlotConfig]): ...
         """
-        with open(history_path, "r", encoding="utf-8") as fin:
-            tem_dict = json.load(fin)
-            history = History(**tem_dict)
-        
-        df = pd.DataFrame(history.history)
-        loss_y_lim = None if loss_uplimit is None else (0, loss_uplimit)
-        acc_y_lim =  None if acc_autoscale else (0.0, 1.0)
+        if isinstance(history_or_path, str):
+            with open(history_or_path, "r", encoding="utf-8") as fin:
+                tem_dict = json.load(fin)
+                history = History(**tem_dict)
+        else:
+            history = history_or_path
 
-        HistoryUtils._plot(
-            "Loss",
-            df["train_loss"].tolist(),
-            df["valid_loss"].tolist(),
-            output_dir,
-            y_lim=loss_y_lim,
-            show=show,
-            save=save
-        )
-        if plot_accuracy:
+        train_criteria: List[dict] = [data["train_criteria"] for data in history.history]
+        valid_criteria: List[dict] = [data["valid_criteria"] for data in history.history]
+
+        train_df = pd.DataFrame(train_criteria)
+        valid_df = pd.DataFrame(valid_criteria)
+
+        plot_configs = plot_configs or Criteria.get_plot_config_from_registered_criterion()
+        for key in train_criteria[0].keys():
+            config = plot_configs.get(key, None)
+            y_lim = None
+            title = key
+            if config is not None:
+                if not config.plot:
+                    continue
+                title = config.full_name
+                bottom = config.default_lower_limit_for_plot
+                top = config.default_upper_limit_for_plot
+                y_lim = (bottom, top)
+            
             HistoryUtils._plot(
-                "Accuracy",
-                df["train_acc"].tolist(),
-                df["valid_acc"].tolist(),
-                output_dir,
-                y_lim=acc_y_lim,
+                title,
+                train_df[key].tolist(),
+                valid_df[key].tolist(),
+                output_dir=output_dir,
+                y_lim=y_lim,
                 show=show,
-                save=save
+                save=save,
             )
         return
 
     def plot(
         self,
-        loss_uplimit: float = None,
-        plot_accuracy: bool = False,
-        acc_autoscale: bool = False,
         show: bool = False,
         save: bool = True,
     ):
         """plot the loss-epoch figure
 
         Args:
-            history_path (str): file of history (in json)
-            output_dir (str): dir to export the result figure
-            loss_uplimit (float): scale the upper limit to the specfied value.
-                Defaluts to None (autoscale).
-            plot_accuracy (bool): whether plot the accuarcy graph. Defaults to False.
-            acc_autoscale (bool): whether autoscale the accuracy. Defaults to False. When
-                plot_accuracy is set to False, this is not taking effect.
             show (bool): whether show the image. Defaults to False.
             save (bool): whether save the image. Defaults to True.
                 Note that (show or save) must be True.
         """
         HistoryUtils.plot_history(
-            self.path,
+            self.history,
             self.root,
-            loss_uplimit=loss_uplimit,
-            plot_accuracy=plot_accuracy,
-            acc_autoscale=acc_autoscale,
             show=show,
             save=save,
+            plot_configs=self.PLOT_CONFIGS,
         )
         return

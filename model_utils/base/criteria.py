@@ -99,13 +99,16 @@ class Criteria:
     primary_criterion: _Criterion
     __registered_criteria: List[_Criterion] = []
 
-    def __init__(self, *criteria: _Criterion):
+    def __init__(self, *criteria: Union[_Criterion, float]):
         if len(criteria) == 1:
             criteria = criteria[0]
         
         is_got_primary = False
         self._data = criteria
         for criterion in criteria:
+            if isinstance(criterion, float):
+                criterion = Loss(criterion, True)
+
             if criterion.primary:
                 assert is_got_primary is False, (
                     f"Got both '{self.primary_criterion.short_name}' and "
@@ -131,7 +134,7 @@ class Criteria:
 
     def display(self):
         for criterion in self._data:
-            print(f"{criterion.full_name}:  {criterion}")
+            print(f"{criterion.full_name}:  {criterion}", end="\t")
         return
     
     def get_plot_configs(self) -> dict[str, PlotConfig]:

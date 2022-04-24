@@ -285,7 +285,8 @@ class BaseModelUtils:
                 best_valid_criteria = valid_criteria
                 counter = 0
             
-            print(f"Current best: {best_valid_criteria.primary_criterion}")
+            best_criterion = best_valid_criteria.primary_criterion
+            print(f"Current best {best_criterion.full_name}: {best_criterion}")
             
             if epoch == epochs - 1:
                 self._save(epoch, stat)

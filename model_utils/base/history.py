@@ -209,7 +209,7 @@ class HistoryUtils:
         train_df = pd.DataFrame(train_criteria)
         valid_df = pd.DataFrame(valid_criteria)
 
-        plot_configs = plot_configs or Criteria.get_plot_config_from_registered_criterion()
+        plot_configs = plot_configs or Criteria.get_plot_configs_from_registered_criterion()
         for key in train_criteria[0].keys():
             config = plot_configs.get(key, None)
             y_lim = None
@@ -237,6 +237,7 @@ class HistoryUtils:
         self,
         show: bool = False,
         save: bool = True,
+        plot_configs: Dict[str, PlotConfig] = None,
     ):
         """plot the loss-epoch figure
 
@@ -245,11 +246,12 @@ class HistoryUtils:
             save (bool): whether save the image. Defaults to True.
                 Note that (show or save) must be True.
         """
+        plot_configs = plot_configs or self.PLOT_CONFIGS
         HistoryUtils.plot_history(
             self.history,
             self.root,
             show=show,
             save=save,
-            plot_configs=self.PLOT_CONFIGS,
+            plot_configs=plot_configs,
         )
         return

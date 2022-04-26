@@ -1,9 +1,9 @@
 from __future__ import annotations
 from typing import List, Union, TypeVar
-from .config import BaseConfig
+from .config import NamespaceDict
 
 
-class PlotConfig(BaseConfig):
+class PlotConfig(NamespaceDict):
     short_name: str
     full_name: str
 
@@ -135,6 +135,7 @@ class Criteria:
     def display(self):
         for criterion in self._data:
             print(f"{criterion.full_name}:  {criterion}", end="\t")
+        print("")
         return
     
     def get_plot_configs(self) -> dict[str, PlotConfig]:
@@ -155,7 +156,7 @@ class Criteria:
         return criterion
     
     @staticmethod
-    def get_plot_config_from_registered_criterion():
+    def get_plot_configs_from_registered_criterion():
         configs = {}
         for criterion in Criteria.__registered_criteria:
             configs[criterion.short_name] = PlotConfig(

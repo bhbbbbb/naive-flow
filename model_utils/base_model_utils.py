@@ -309,12 +309,22 @@ class BaseModelUtils:
         return self.history_utils.log_history(stat)
     
     
-    def plot_history(self, show: bool = False, save: bool = True):
+    def plot_history(
+        self,
+        show: bool = False,
+        save: bool = True,
+        plot_configs = None,
+    ):
         self.history_utils.plot(
             show=show,
             save=save,
+            plot_configs=plot_configs,
         )
         return
+    
+    @staticmethod
+    def get_default_plot_configs():
+        return Criteria.get_plot_configs_from_registered_criterion()
 
 
 def formatted_now():

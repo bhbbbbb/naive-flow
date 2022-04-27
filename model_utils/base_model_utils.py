@@ -2,6 +2,7 @@ import os
 import re
 from datetime import datetime
 from argparse import Namespace
+from typing import Union
 import torch
 from torch import nn
 from torch.optim import Optimizer
@@ -90,7 +91,7 @@ class BaseModelUtils:
         )
 
     @staticmethod
-    def load_config(checkpoint_path: str):
+    def load_config(checkpoint_path: str, as_dict: bool = False) -> Union[ModelUtilsConfig, dict]:
         """load config from the given checkpoint
 
         Args:
@@ -104,8 +105,10 @@ class BaseModelUtils:
 
         tem = torch.load(checkpoint_path)
         checkpoint = ModelStates(**tem)
-        config = ModelUtilsConfig(**checkpoint.config)
-        return config
+        if as_dict:
+            return checkpoint.config
+
+        return ModelUtilsConfig(**checkpoint.config)
 
     @classmethod
     def load_checkpoint(cls, model: nn.Module, checkpoint_path: str,

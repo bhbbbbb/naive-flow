@@ -10,6 +10,10 @@
 
 - minor fix
 
+#### 0.1.3.2
+
+- add load_config method
+
 ### 0.1.2
 
 - support for model that don't use accuacy.

@@ -156,7 +156,7 @@ class Criteria:
         return criterion
     
     @staticmethod
-    def get_plot_configs_from_registered_criterion():
+    def get_plot_configs_from_registered_criterion() -> dict[str, PlotConfig]:
         configs = {}
         for criterion in Criteria.__registered_criteria:
             configs[criterion.short_name] = PlotConfig(

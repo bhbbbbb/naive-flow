@@ -17,11 +17,6 @@ PropertySetterT = TypeVar("PropertySetterT", bound=Callable[[Any, Any], None])
 MemberSetterT = TypeVar("MemberSetterT", bound=Callable[[Any, Any], Any])
 FunctionSetterT = TypeVar("FunctionSetterT", bound=Callable[[Any], Any])
 
-def _register_checking_hook(func):
-    """forward declare"""
-    register_checking_hook(func)
-    return
-    
 
 class Mutable(property):
     
@@ -91,7 +86,6 @@ class Mutable(property):
             self._idx,
         )
 
-    @_register_checking_hook
     @staticmethod
     def check_mutable_implementation():
         for data in Mutable._data:
@@ -179,3 +173,5 @@ class BaseConfig(NamespaceDict):
 def register_checking_hook(func):
     BaseConfig.__checking_hooks__.append(func)
     return func
+
+register_checking_hook(Mutable.check_mutable_implementation)

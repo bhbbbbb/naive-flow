@@ -3,14 +3,17 @@ import re
 from datetime import datetime
 from argparse import Namespace
 from typing import Union
+
 import torch
 from torch import nn
 from torch.optim import Optimizer
 from torch.utils.data import Dataset
+
 from .config import ModelUtilsConfig
 from .base.history import HistoryUtils, Stat
 from .base.logger import Logger
 from .base.criteria import Criteria
+from .base.early_stopping_handler import EarlyStoppingHandler
 
 
 class ModelStates(Namespace):
@@ -270,15 +273,20 @@ class BaseModelUtils:
                 "Warning: You are Not passing the validset\n"
                 "make sure you know what yor are doing."
             )
-        # counting for early stopping
-        best_valid_criteria = None
-        counter = 0
+
+        es_handler = EarlyStoppingHandler(self.config)
 
         for epoch in range(self.start_epoch, epochs):
+
             self.logger.log(f"Epoch: {epoch + 1} / {epochs}")
             train_criteria = self._train_epoch(trainset)
-            valid_criteria = self._eval_epoch(validset)\
-                if validset is not None else train_criteria
+            
+            valid_criteria = None
+            if (
+                validset is not None
+                and (epoch + 1 - self.start_epoch) % self.config.epochs_per_eval == 0
+            ):
+                valid_criteria = self._eval_epoch(validset)
 
             stat = Stat(
                 epoch=epoch + 1,
@@ -288,34 +296,18 @@ class BaseModelUtils:
             stat.display()
 
 
-            if not valid_criteria.better_than(best_valid_criteria):
-                counter += 1
-                threshold = self.config.early_stopping_threshold\
-                                if self.config.early_stopping else "infinity"
-                print("Early stopping counter:"
-                        f"{counter} / {threshold}")
-                
-                if (
-                    self.config.early_stopping
-                    and counter == self.config.early_stopping_threshold
-                ):
-                    self.logger.log("Early stopping!")
-                    self._save(epoch, stat)
-                    break
-            else:
-                best_valid_criteria = valid_criteria
-                counter = 0
-            
-            best_criterion = best_valid_criteria.primary_criterion
-            print(f"Current best {best_criterion.full_name}: {best_criterion}")
-            
+            if es_handler.should_stop(valid_criteria):
+                self.logger.log("Early stopping!")
+                self._save(epoch, stat)
+                break
+
             if epoch == epochs - 1:
                 self._save(epoch, stat)
             
             elif (
                 self.config.epochs_per_checkpoint
                 and (epoch + 1 - self.start_epoch) % self.config.epochs_per_checkpoint == 0
-                or (self.config.save_best and counter == 0)
+                or es_handler.should_save_best()
             ):
                 self._save(epoch, stat)
 

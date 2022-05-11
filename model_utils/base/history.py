@@ -138,14 +138,20 @@ class HistoryUtils:
         return self.path
     
     @staticmethod
-    def _plot(title: str, train_data: list, valid_data: list, output_dir: str,
-                y_lim: Tuple[float, float] = None,
-                show: bool = False, save: bool = True) -> str:
+    def _plot(
+        title: str,
+        train_data: Union[list, Tuple[list, list]],
+        valid_data: Union[list, Tuple[list, list]],
+        output_dir: str,
+        y_lim: Tuple[float, float] = None,
+        show: bool = False,
+        save: bool = True
+    ) -> str:
         """plot history graph
 
         Args:
             title (str): title of image
-            train_data (list): train_data
+            train_data (list): train_data. `y` or `(x, y)`
             valid_data (list): valid_data
             output_dir (str): dir to store the output image
             y_lim (Tuple[float, float]): use specified scale of y instead of auto-scale.
@@ -158,8 +164,17 @@ class HistoryUtils:
         """
         assert show or save, "show or save must not be both False."
         plt.figure(figsize=(10,5))
-        plt.plot(train_data, label="train")
-        plt.plot(valid_data, label="valid")
+
+        if isinstance(train_data[0], list):
+            plt.plot(*train_data, label="train")
+        else:
+            plt.plot(train_data, label="train")
+
+        if isinstance(valid_data[0], list):
+            plt.plot(*valid_data, label="train")
+        else:
+            plt.plot(valid_data, label="train")
+
         if y_lim is not None:
             bottom, top = y_lim
             if bottom is not None:
@@ -204,7 +219,12 @@ class HistoryUtils:
             history = history_or_path
 
         train_criteria: List[dict] = [data["train_criteria"] for data in history.history]
-        valid_criteria: List[dict] = [data["valid_criteria"] for data in history.history]
+        valid_tem = [
+            (data["epoch"], data["valid_criteria"]) for data in history.history\
+                if hasattr(data, "valid_criteria")
+        ]
+        valid_epochs, valid_criteria = zip(*valid_tem)
+        valid_criteria: List[dict]
 
         train_df = pd.DataFrame(train_criteria)
         valid_df = pd.DataFrame(valid_criteria)
@@ -225,7 +245,7 @@ class HistoryUtils:
             HistoryUtils._plot(
                 title,
                 train_df[key].tolist(),
-                valid_df[key].tolist(),
+                (valid_epochs, valid_df[key].tolist()),
                 output_dir=output_dir,
                 y_lim=y_lim,
                 show=show,

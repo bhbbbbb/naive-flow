@@ -97,8 +97,8 @@ class BaseConfig(NamespaceDict):
     """simple wrap of NamespaceDict with utils for config"""
 
     __checking_hooks__: List[Callable] = []
-    checked__: bool = False
-    default_immutable__: bool = True
+    __checked__: bool = False
+    __immutable__: bool = False
     
     def __getattribute__(self, __name: str):
         tem = super().__getattribute__(__name)
@@ -107,13 +107,8 @@ class BaseConfig(NamespaceDict):
             raise NotImplementedError(f"attribute: '{__name}' should be implemented")
         return tem
 
-    @staticmethod
-    def always_mutable(switch = True):
-        BaseConfig.default_immutable__ = not switch
-        return
-    
     def __setattr__(self, __name: str, __value: Any) -> None:
-        if not self.default_immutable__:
+        if not self.__immutable__ or self._is_builtin_name(__name):
             super().__setattr__(__name, __value)
             return
         
@@ -144,13 +139,21 @@ class BaseConfig(NamespaceDict):
                 )
         return
 
-    def check(self):
+    def check_and_freeze(self, freeze: bool = True):
+        """Run checking hooks, check implementation, and freeze.
+
+        Args:
+            freeze (bool, optional): whether freeze. Defaults to True.
+        """
         self._check()
         for _, _ in dict(self).items():
             pass
+        if freeze:
+            self.__immutable__ = True
+        self.__checked__ = True
         return
     
-    def display(self, file: Writable = None, forced_check: bool = False):
+    def display(self, file: Writable = None, skip_check: bool = False):
         """display all the configurations
 
         Args:
@@ -159,8 +162,9 @@ class BaseConfig(NamespaceDict):
             forced_check (bool, optional): Run checking hook
                 if (`BaseConfig.__checked` is False or `forced_check` is True). Defaults to False.
         """
-        if not self.checked__ or forced_check:
-            self._check()
+        if not skip_check:
+            assert self.__checked__, "run 'check_and_freeze' before 'display'."
+
         sio = StringIO()
         sio.write("Configuration:\n")
         for attr, value in dict(self).items():

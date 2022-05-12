@@ -165,15 +165,16 @@ class HistoryUtils:
         assert show or save, "show or save must not be both False."
         plt.figure(figsize=(10,5))
 
-        if isinstance(train_data[0], list):
-            plt.plot(*train_data, label="train")
-        else:
-            plt.plot(train_data, label="train")
+        def _plot_(data, label: str):
+            if data is not None:
+                if isinstance(data[0], list):
+                    plt.plot(*data, label=label)
+                else:
+                    plt.plot(data, label=label)
+            return
 
-        if isinstance(valid_data[0], list):
-            plt.plot(*valid_data, label="train")
-        else:
-            plt.plot(valid_data, label="train")
+        _plot_(train_data, "train")
+        _plot_(valid_data, "valid")
 
         if y_lim is not None:
             bottom, top = y_lim
@@ -230,27 +231,24 @@ class HistoryUtils:
         valid_df = pd.DataFrame(valid_criteria)
 
         plot_configs = plot_configs or Criteria.get_plot_configs_from_registered_criterion()
-        for key in train_criteria[0].keys():
-            config = plot_configs.get(key, None)
-            y_lim = None
-            title = key
-            if config is not None:
-                if not config.plot:
-                    continue
-                title = config.full_name
-                bottom = config.default_lower_limit_for_plot
-                top = config.default_upper_limit_for_plot
-                y_lim = (bottom, top)
-            
-            HistoryUtils._plot(
-                title,
-                train_df[key].tolist(),
-                (valid_epochs, valid_df[key].tolist()),
-                output_dir=output_dir,
-                y_lim=y_lim,
-                show=show,
-                save=save,
-            )
+        for key, config in plot_configs.items():
+            if not config.plot:
+                continue
+
+            y_lim = (config.default_lower_limit_for_plot, config.default_upper_limit_for_plot)
+
+            train_data = train_df[key].tolist() if key in train_df.columns else None
+            valid_data = (valid_epochs, valid_df[key].tolist()) if key in valid_df.columns else None
+            if train_data or valid_data:
+                HistoryUtils._plot(
+                    config.full_name,
+                    train_data,
+                    valid_data,
+                    output_dir=output_dir,
+                    y_lim=y_lim,
+                    show=show,
+                    save=save,
+                )
         return
 
     def plot(

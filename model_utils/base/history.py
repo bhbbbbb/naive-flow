@@ -222,9 +222,10 @@ class HistoryUtils:
         train_criteria: List[dict] = [data["train_criteria"] for data in history.history]
         valid_tem = [
             (data["epoch"], data["valid_criteria"]) for data in history.history\
-                if hasattr(data, "valid_criteria")
+                if "valid_criteria" in data
         ]
         valid_epochs, valid_criteria = zip(*valid_tem)
+        valid_epochs = list(valid_epochs)
         valid_criteria: List[dict]
 
         train_df = pd.DataFrame(train_criteria)
@@ -239,6 +240,7 @@ class HistoryUtils:
 
             train_data = train_df[key].tolist() if key in train_df.columns else None
             valid_data = (valid_epochs, valid_df[key].tolist()) if key in valid_df.columns else None
+            print(valid_data)
             if train_data or valid_data:
                 HistoryUtils._plot(
                     config.full_name,

@@ -1,5 +1,17 @@
 # Change Log
 
+### 0.1.4
+
+- support scheduler
+
+- refine register_criteria usage
+
+- now it's not necessary to eval every epoch (refer to `epoch_per_eval` config)
+
+- add mutable feature (unstable)
+
+- fix minor bug
+
 ### 0.1.3
 
 - now `_train_epoch` and `_eval_epoch` return object `Criteria` instead of `Union[float, Tuple[float, float]]`

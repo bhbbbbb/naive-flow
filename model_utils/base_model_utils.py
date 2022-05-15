@@ -7,6 +7,7 @@ from typing import Union
 import torch
 from torch import nn
 from torch.optim import Optimizer
+from torch.optim.lr_scheduler import _LRScheduler
 from torch.utils.data import Dataset
 
 from .config import ModelUtilsConfig
@@ -25,6 +26,7 @@ class ModelStates(Namespace):
     ########## torch built-in model states ############
     model_state_dict: dict
     optimizer_state_dict: dict
+    scheduler_state_dict: dict
 
     # statistic of the last epoch
     stat: Stat
@@ -37,6 +39,7 @@ class BaseModelUtils:
     model: nn.Module
     config: ModelUtilsConfig
     optimizer: Optimizer
+    scheduler: _LRScheduler
     start_epoch: int
     root: str
     history_utils: HistoryUtils
@@ -47,6 +50,7 @@ class BaseModelUtils:
             model: nn.Module,
             config: ModelUtilsConfig,
             optimizer: Optimizer,
+            scheduler: _LRScheduler,
             start_epoch: int,
             root: str,
             history_utils: HistoryUtils,
@@ -57,6 +61,7 @@ class BaseModelUtils:
         self.model.to(config.device)
         self.config = config
         self.optimizer = optimizer
+        self.scheduler = scheduler
         self.start_epoch = start_epoch
         self.root = root
         self.history_utils = history_utils
@@ -72,10 +77,32 @@ class BaseModelUtils:
     def _get_optimizer(model: nn.Module, config: ModelUtilsConfig) -> Optimizer:
         raise NotImplementedError
 
+    @staticmethod
+    def _get_scheduler(
+        optimizer: Optimizer,
+        config: ModelUtilsConfig,
+        state_dict: Union[dict, None],
+    ) -> _LRScheduler:
+        """Define how to get scheduler, default returning None, which is equivalent to use constant
+            learning rate.
+
+        Args:
+            optimizer (Optimizer): optimizer that return by `_get_optimizer`
+            config (ModelUtilsConfig): config
+            state_dict (dict, None): if resume by checkpoint, the state_dict is the value return
+                by `scheduler.get_state_dict()`. Otherwise, state_dict is None.
+
+        Returns:
+            _LRScheduler: scheduler to use. return None to use constant learning rate.
+        """
+        # pylint: disable=unused-argument
+        return None
+
     @classmethod
     def start_new_training(cls, model: nn.Module, config: ModelUtilsConfig):
         
         optimizer = cls._get_optimizer(model, config)
+        scheduler = cls._get_scheduler(optimizer, config, None)
         # init for history and log
         time_str = formatted_now()
         root = os.path.join(config.log_dir, time_str)
@@ -87,6 +114,7 @@ class BaseModelUtils:
             model = model,
             config = config,
             optimizer = optimizer,
+            scheduler = scheduler,
             start_epoch = 0,
             root = root,
             history_utils = history_utils,
@@ -135,6 +163,7 @@ class BaseModelUtils:
         model.to(config.device)
         optimizer = cls._get_optimizer(model, config)
         optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+        scheduler = cls._get_scheduler(optimizer, config, checkpoint.scheduler_state_dict)
         
         root = os.path.dirname(checkpoint_path)
         logger = Logger(root) if config.logging else Logger()
@@ -145,6 +174,7 @@ class BaseModelUtils:
             model = model,
             config = config,
             optimizer = optimizer,
+            scheduler = scheduler,
             start_epoch = start_epoch,
             root = root,
             history_utils = history_utils,
@@ -220,6 +250,7 @@ class BaseModelUtils:
             start_epoch = cur_epoch + 1,
             model_state_dict = self.model.state_dict(),
             optimizer_state_dict = self.optimizer.state_dict(),
+            scheduler_state_dict = self.scheduler.state_dict(),
             config = self.config.asdict(),
             stat = stat.asdict(),
         ))
@@ -294,7 +325,6 @@ class BaseModelUtils:
                 valid_criteria=valid_criteria,
             )
             stat.display()
-
 
             if es_handler.should_stop(valid_criteria):
                 self.logger.log("Early stopping!")

@@ -17,11 +17,13 @@ class EarlyStoppingHandler:
 
     best_criteria: Criteria
     counter: int
+    _best_saved: bool
 
     def __init__(self, config: EarlyStoppingConfig):
         self.best_criteria = None
         self.counter = 0
         self.config = config
+        self._best_saved = False
         return
     
     def should_stop(self, new_criteria: Criteria) -> bool:
@@ -41,6 +43,7 @@ class EarlyStoppingHandler:
 
         self.best_criteria = new_criteria
         self.counter = 0
+        self._best_saved = False
         self._print_best_criterion()
         return False
 
@@ -50,4 +53,7 @@ class EarlyStoppingHandler:
         return
     
     def should_save_best(self):
-        return bool(self.config.save_best and self.counter == 0)
+        if self.config.save_best and self.counter == 0 and not self._best_saved:
+            self._best_saved = True
+            return True
+        return False

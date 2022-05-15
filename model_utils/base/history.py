@@ -79,7 +79,6 @@ class HistoryUtils:
     history: History
     root: str
     path: str
-    PLOT_CONFIGS: PlotConfig = None
 
     HISTORY_JSON_PATTERN = r"^\d{8}T\d{2}-\d{2}-\d{2}_history.json"
 
@@ -128,8 +127,6 @@ class HistoryUtils:
         """
         self.history.history.append(stat.asdict())
         self.history.root = self.root
-        if self.PLOT_CONFIGS is None:
-            self.PLOT_CONFIGS = stat.get_plot_configs()
 
         os.makedirs(self.root, exist_ok=True)
         with open(self.path, "w", encoding="utf-8") as fout:
@@ -240,7 +237,6 @@ class HistoryUtils:
 
             train_data = train_df[key].tolist() if key in train_df.columns else None
             valid_data = (valid_epochs, valid_df[key].tolist()) if key in valid_df.columns else None
-            print(valid_data)
             if train_data or valid_data:
                 HistoryUtils._plot(
                     config.full_name,
@@ -266,7 +262,6 @@ class HistoryUtils:
             save (bool): whether save the image. Defaults to True.
                 Note that (show or save) must be True.
         """
-        plot_configs = plot_configs or self.PLOT_CONFIGS
         HistoryUtils.plot_history(
             self.history,
             self.root,

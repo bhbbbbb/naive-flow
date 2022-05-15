@@ -25,6 +25,8 @@ class EarlyStoppingHandler:
         return
     
     def should_stop(self, new_criteria: Criteria) -> bool:
+        if new_criteria is None:
+            return False
         if not new_criteria.better_than(self.best_criteria):
             self.counter += 1
             threshold = self.config.early_stopping_threshold\

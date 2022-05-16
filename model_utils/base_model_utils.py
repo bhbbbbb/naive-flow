@@ -104,8 +104,8 @@ class BaseModelUtils:
         optimizer = cls._get_optimizer(model, config)
         scheduler = cls._get_scheduler(optimizer, config, None)
         # init for history and log
-        time_str = formatted_now()
-        root = os.path.join(config.log_dir, time_str)
+        rootname = formatted_now()
+        root = os.path.join(config.log_dir, rootname)
         os.makedirs(root, exist_ok=True)
         history_utils = HistoryUtils(root=root)
         logger = Logger(root) if config.logging else Logger()
@@ -142,8 +142,9 @@ class BaseModelUtils:
         return ModelUtilsConfig(**checkpoint.config)
 
     @classmethod
-    def load_checkpoint(cls, model: nn.Module, checkpoint_path: str,
-                        config: ModelUtilsConfig = None):
+    def load_checkpoint(
+        cls, model: nn.Module, checkpoint_path: str, config: ModelUtilsConfig = None
+    ):
         """init ModelUtils class with the saved model (or checkpoint)
 
         Args:
@@ -153,7 +154,9 @@ class BaseModelUtils:
 
         """
 
-        assert os.path.isfile(checkpoint_path)
+        assert os.path.isfile(checkpoint_path), (
+            f"expect checkpoint_path: '{checkpoint_path}' is file."
+        )
 
         tem = torch.load(checkpoint_path)
         checkpoint = ModelStates(**tem)
@@ -165,10 +168,13 @@ class BaseModelUtils:
         optimizer.load_state_dict(checkpoint.optimizer_state_dict)
         scheduler = cls._get_scheduler(optimizer, config, checkpoint.scheduler_state_dict)
         
-        root = os.path.dirname(checkpoint_path)
+        input_root = os.path.dirname(checkpoint_path)
+        rootname = os.path.basename(input_root)
+        root = os.path.join(config.log_dir, rootname)
+        os.makedirs(root, exist_ok=True)
         logger = Logger(root) if config.logging else Logger()
         start_epoch = checkpoint.start_epoch
-        history_utils = HistoryUtils.load_history(root, start_epoch, logger)
+        history_utils = HistoryUtils.load_history(input_root, root, start_epoch, logger)
         logger.log(f"Checkpoint {os.path.basename(checkpoint_path)} is loaded.")
         return cls(
             model = model,
@@ -187,7 +193,7 @@ class BaseModelUtils:
 
         PATTERN = r".+?_epoch_(\d+)"
         max_epoch = 0
-        max_idx = 0
+        max_idx = -1
         save_list = os.listdir(dir_path)
         for idx, save in enumerate(save_list):
             match = re.match(PATTERN, save)
@@ -197,6 +203,7 @@ class BaseModelUtils:
                     max_epoch = epoch
                     max_idx = idx
         
+        assert max_idx >= 0, f"cannot find any checkpoint in dir: '{dir_path}'"
 
         last_save = save_list[max_idx]
 
@@ -212,12 +219,8 @@ class BaseModelUtils:
     @classmethod
     def load_last_checkpoint(cls, model: nn.Module, config: ModelUtilsConfig):
 
-        assert config.log_dir is not None, (
-            "when log_dir is set to None, load_last_checkpoint is not available"
-        )
-
         TIME_FORMAT_PATTERN = r"^\d{8}T\d{2}-\d{2}-\d{2}"
-        def is_timeformatted_not_empty(name: str) -> bool:
+        def is_timeformatted_dir(name: str) -> bool:
             """check whether a name of dir is start with formatted time and not empty
 
             E.g:
@@ -229,13 +232,10 @@ class BaseModelUtils:
                 return False
             
             path = os.path.join(config.log_dir, name)
-            if len(os.listdir(path)) == 0: # if empty
-                os.removedirs(path)
-                return False
-            return True
+            return os.path.isdir(path)
 
         arr = [dir_name for dir_name in os.listdir(config.log_dir)
-                                            if is_timeformatted_not_empty(dir_name)]
+                                            if is_timeformatted_dir(dir_name)]
 
         last_train_root = max(arr)
         last_train_root = os.path.join(config.log_dir, last_train_root)
@@ -246,11 +246,12 @@ class BaseModelUtils:
         )
 
     def _save(self, cur_epoch: int, stat: Stat) -> str:
+        scheduler_dict = self.scheduler.state_dict() if self.scheduler else {}
         tem = vars(ModelStates(
             start_epoch = cur_epoch + 1,
             model_state_dict = self.model.state_dict(),
             optimizer_state_dict = self.optimizer.state_dict(),
-            scheduler_state_dict = self.scheduler.state_dict(),
+            scheduler_state_dict = scheduler_dict,
             config = self.config.asdict(),
             stat = stat.asdict(),
         ))

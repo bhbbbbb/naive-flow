@@ -59,16 +59,12 @@ class Stat:
 
 class History(NamespaceDict):
 
-    # root of log dir
-    root: str
-
     history: List[dict] # List of Stat in dict format
 
     checkpoints: dict
 
-    def __init__(self, root: str, history: List[dict], checkpoints: dict):
+    def __init__(self, history: List[dict], checkpoints: dict):
         super().__init__()
-        self.root = root
         self.history = history
         self.checkpoints = checkpoints
 
@@ -88,32 +84,32 @@ class HistoryUtils:
         
         self.path = path or os.path.join(root, f"{root_name}_history.json")
 
-        self.history = history or History(root=root, history=[], checkpoints={})
+        self.history = history or History(history=[], checkpoints={})
         return
     
     @classmethod
-    def load_history(cls, root: str, start_epoch: int, logger: Writable):
-
-        tem = [name for name in os.listdir(root) if re.match(cls.HISTORY_JSON_PATTERN, name)]
+    def load_history(
+        cls, input_root: str, root: str, start_epoch: int, logger: Writable
+    ):
+        tem = [name for name in os.listdir(input_root) if re.match(cls.HISTORY_JSON_PATTERN, name)]
 
         assert len(tem) <= 1, f"Suppose <= 1 history.json in the folder, but got {len(tem)}"
 
         if len(tem) == 0:
-            logger.write(f"Warning: No history.json in {root}")
+            logger.write(f"Warning: No history.json in {input_root}")
             history = None
             history_log_path = None
         else:
             history_log_name = tem[0]
 
-            history_log_path = os.path.join(root, history_log_name)
-            with open(history_log_path, "r", encoding="utf-8") as fin:
+            input_history_log_path = os.path.join(input_root, history_log_name)
+            with open(input_history_log_path, "r", encoding="utf-8") as fin:
                 tem_dict = json.load(fin)
                 history = History(**tem_dict)
 
-                history.root = root
                 if len(history.history) > start_epoch:
                     history.history = history.history[:start_epoch]
-            
+            history_log_path = os.path.join(root, history_log_name)
         return cls(root=root, path=history_log_path, history=history)
 
     def log_history(self, stat: Stat) -> str:
@@ -126,7 +122,6 @@ class HistoryUtils:
             str: path to the log file history.json
         """
         self.history.history.append(stat.asdict())
-        self.history.root = self.root
 
         os.makedirs(self.root, exist_ok=True)
         with open(self.path, "w", encoding="utf-8") as fout:

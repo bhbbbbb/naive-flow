@@ -53,7 +53,10 @@ class EarlyStoppingHandler:
         return
     
     def should_save_best(self):
-        if self.config.save_best and self.counter == 0 and not self._best_saved:
+        if (
+            self.config.save_best and self.counter == 0 and not self._best_saved
+            and self.best_criteria is not None
+        ):
             self._best_saved = True
             return True
         return False

@@ -349,6 +349,7 @@ class BaseModelUtils:
             stat.test_criteria = self._eval_epoch(testset)
             stat.display()
         
+        self.start_epoch = epochs
         return self.history_utils.log_history(stat)
     
     

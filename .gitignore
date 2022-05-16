@@ -2,4 +2,8 @@
 .vscode
 *.egg-info
 __pycache__
+
+log*
+
 test.*
+do.py

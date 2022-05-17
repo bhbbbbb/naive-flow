@@ -63,7 +63,7 @@ class History(NamespaceDict):
 
     checkpoints: dict
 
-    def __init__(self, history: List[dict], checkpoints: dict):
+    def __init__(self, history: List[dict], checkpoints: dict, **_):
         super().__init__()
         self.history = history
         self.checkpoints = checkpoints

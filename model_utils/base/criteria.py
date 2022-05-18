@@ -174,7 +174,7 @@ class Criteria:
             if primary:
                 NewCriterion.primary = primary
             Criteria.__registered_criteria.append(NewCriterion)
-            return _criterion
+            return NewCriterion
         
         return wrapper
     

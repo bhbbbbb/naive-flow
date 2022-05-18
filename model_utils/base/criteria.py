@@ -173,6 +173,13 @@ class Criteria:
                 NewCriterion.default_upper_limit_for_plot = default_upper_limit_for_plot
             if primary:
                 NewCriterion.primary = primary
+            
+            registerd_keys = [criterion.short_name for criterion in Criteria.__registered_criteria]
+            key = getattr(NewCriterion, "short_name", None)
+            assert key is not None and key not in registerd_keys, (
+                f"The short_name '{key}' is already registerd, "
+                "note that all of the short_name of criteria have to be unique."
+            )
             Criteria.__registered_criteria.append(NewCriterion)
             return NewCriterion
         

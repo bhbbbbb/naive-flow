@@ -161,17 +161,17 @@ class Criteria:
         def wrapper(_criterion: type[_CriterionT]) -> type[_CriterionT]:
             NewCriterion = type("NewCriterion", (_criterion, ), {})
 
-            if short_name:
+            if short_name is not None:
                 NewCriterion.short_name = short_name
-            if full_name:
+            if full_name is not None:
                 NewCriterion.full_name = full_name
-            if plot:
+            if plot is not None:
                 NewCriterion.plot = plot
-            if default_lower_limit_for_plot:
+            if default_lower_limit_for_plot is not None:
                 NewCriterion.default_lower_limit_for_plot = default_lower_limit_for_plot
-            if default_upper_limit_for_plot:
+            if default_upper_limit_for_plot is not None:
                 NewCriterion.default_upper_limit_for_plot = default_upper_limit_for_plot
-            if primary:
+            if primary is not None:
                 NewCriterion.primary = primary
             
             registerd_keys = [criterion.short_name for criterion in Criteria.__registered_criteria]

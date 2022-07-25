@@ -12,6 +12,9 @@ class _Unimplemented:
 UNIMPLEMENTED = _Unimplemented()
 """`NotImplementedError` would raise when someone try to reach this constant"""
 
+NOT_NECESSARY = None
+"""constant can be used to mark a property of config as not necessary"""
+
 PropertyGetterT = TypeVar("PropertyGetterT", bound=Callable[[Any], Any])
 PropertySetterT = TypeVar("PropertySetterT", bound=Callable[[Any, Any], None])
 MemberSetterT = TypeVar("MemberSetterT", bound=Callable[[Any, Any], Any])

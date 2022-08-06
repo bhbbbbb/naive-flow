@@ -1,10 +1,10 @@
+import logging
 from typing import List, Tuple, Union, Dict
 import os
 import re
 import json
 import matplotlib.pyplot as plt
 import pandas as pd
-from .writable import Writable
 from .namespace_dict import NamespaceDict
 from .criteria import Criteria, PlotConfig
 
@@ -89,14 +89,14 @@ class HistoryUtils:
     
     @classmethod
     def load_history(
-        cls, input_root: str, root: str, start_epoch: int, logger: Writable
+        cls, input_root: str, root: str, start_epoch: int, logger: logging.Logger
     ):
         tem = [name for name in os.listdir(input_root) if re.match(cls.HISTORY_JSON_PATTERN, name)]
 
         assert len(tem) <= 1, f"Suppose <= 1 history.json in the folder, but got {len(tem)}"
 
         if len(tem) == 0:
-            logger.write(f"Warning: No history.json in {input_root}")
+            logger.warning(f"Warning: No history.json in {input_root}")
             history = None
             history_log_path = None
         else:

@@ -3,6 +3,7 @@ import re
 from datetime import datetime
 from argparse import Namespace
 from typing import Union
+import logging
 
 import torch
 from torch import nn
@@ -12,7 +13,7 @@ from torch.utils.data import Dataset
 
 from .config import ModelUtilsConfig
 from .base.history import HistoryUtils, Stat
-from .base.logger import Logger
+from .base.logger import get_logger
 from .base.criteria import Criteria
 from .base.early_stopping_handler import EarlyStoppingHandler
 
@@ -43,7 +44,7 @@ class BaseModelUtils:
     start_epoch: int
     root: str
     history_utils: HistoryUtils
-    logger: Logger
+    logger: logging.Logger
 
     def __init__(
             self,
@@ -54,7 +55,7 @@ class BaseModelUtils:
             start_epoch: int,
             root: str,
             history_utils: HistoryUtils,
-            logger: Logger,
+            logger: logging.Logger,
         ):
 
         self.model = model
@@ -68,9 +69,9 @@ class BaseModelUtils:
         self.logger = logger
 
         # log information
-        print(model, file=logger.file)
-        print(optimizer, file=logger.file)
-        config.display(logger.file)
+        self.logger.debug(model)
+        self.logger.debug(optimizer)
+        self.logger.debug(config)
         return
 
     @staticmethod
@@ -108,7 +109,7 @@ class BaseModelUtils:
         root = os.path.join(config.log_dir, rootname)
         os.makedirs(root, exist_ok=True)
         history_utils = HistoryUtils(root=root)
-        logger = Logger(root) if config.logging else Logger()
+        logger = get_logger(__name__, root) if config.logging else get_logger(__name__)
         
         return cls(
             model = model,
@@ -172,10 +173,10 @@ class BaseModelUtils:
         rootname = os.path.basename(input_root)
         root = os.path.join(config.log_dir, rootname)
         os.makedirs(root, exist_ok=True)
-        logger = Logger(root) if config.logging else Logger()
+        logger = get_logger(__name__, root) if config.logging else get_logger(__name__)
         start_epoch = checkpoint.start_epoch
         history_utils = HistoryUtils.load_history(input_root, root, start_epoch, logger)
-        logger.log(f"Checkpoint {os.path.basename(checkpoint_path)} is loaded.")
+        logger.info(f"Checkpoint {os.path.basename(checkpoint_path)} is loaded.")
         return cls(
             model = model,
             config = config,
@@ -261,7 +262,7 @@ class BaseModelUtils:
         os.makedirs(self.root, exist_ok=True)
         path = os.path.join(self.root, name)
         torch.save(tem, path)
-        self.logger.log(f"Checkpoint: {name} is saved.")
+        self.logger.info(f"Checkpoint: {name} is saved.")
         self.history_utils.history.checkpoints[cur_epoch + 1] = name
         return name
     
@@ -310,7 +311,7 @@ class BaseModelUtils:
 
         for epoch in range(self.start_epoch, epochs):
 
-            self.logger.log(f"Epoch: {epoch + 1} / {epochs}")
+            self.logger.info(f"Epoch: {epoch + 1} / {epochs}")
             train_criteria = self._train_epoch(trainset)
             
             valid_criteria = None
@@ -328,7 +329,7 @@ class BaseModelUtils:
             stat.display()
 
             if es_handler.should_stop(valid_criteria):
-                self.logger.log("Early stopping!")
+                self.logger.info("Early stopping!")
                 self._save(epoch, stat)
                 break
 
@@ -345,7 +346,7 @@ class BaseModelUtils:
             if epoch != epochs - 1:
                 self.history_utils.log_history(stat)
 
-        self.logger.log(f"Training is finish for epochs: {epochs}")
+        self.logger.info(f"Training is finish for epochs: {epochs}")
         if testset is not None:
             stat.test_criteria = self._eval_epoch(testset)
             stat.display()

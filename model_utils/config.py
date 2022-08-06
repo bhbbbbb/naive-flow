@@ -2,7 +2,7 @@ from .base.config import UNIMPLEMENTED
 from .base.early_stopping_handler import EarlyStoppingConfig
 class ModelUtilsConfig(EarlyStoppingConfig):
 
-    device = UNIMPLEMENTED
+    device: str = UNIMPLEMENTED
     """Device to use, cpu or gpu"""
 
     learning_rate: float = UNIMPLEMENTED
@@ -19,7 +19,7 @@ class ModelUtilsConfig(EarlyStoppingConfig):
     """dir for saving checkpoints and log files"""
 
     logging: bool = UNIMPLEMENTED
-    """whether log to file 'log.log'. It's useful to turn this off when inference"""
+    """whether log to file 'log.log'. It's useful to turn this off when inference on kaggle"""
 
     epochs_per_eval: int = UNIMPLEMENTED
     """Number of epochs per evalution"""

@@ -1,7 +1,11 @@
 from io import StringIO
 from typing import Callable, List, TypeVar, Any, Union
-from .writable import Writable
 from .namespace_dict import NamespaceDict
+
+class Writable:
+    """for type hint only"""
+    def write(self, msg: str):
+        pass
 
 class _Unimplemented:
     def __init__(self, msg: str = ""):
@@ -156,6 +160,16 @@ class BaseConfig(NamespaceDict):
         self.__checked__ = True
         return
     
+    def __str__(self):
+        sio = StringIO()
+        sio.write("Configuration:\n")
+        for attr, value in dict(self).items():
+            sio.write(f"{attr:30} {value}\n")
+        sio.write("\n")
+        string = sio.getvalue()
+        sio.close()
+        return string
+
     def display(self, file: Writable = None, skip_check: bool = False):
         """display all the configurations
 
@@ -168,13 +182,7 @@ class BaseConfig(NamespaceDict):
         if not skip_check:
             assert self.__checked__, "run 'check_and_freeze' before 'display'."
 
-        sio = StringIO()
-        sio.write("Configuration:\n")
-        for attr, value in dict(self).items():
-            sio.write(f"{attr:30} {value}\n")
-        sio.write("\n")
-        print(sio.getvalue(), file=file, end="")
-        sio.close()
+        print(str(self), file=file, end="")
         return
     
 def register_checking_hook(func):

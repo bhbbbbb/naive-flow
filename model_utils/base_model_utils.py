@@ -82,19 +82,14 @@ class BaseModelUtils:
     def _get_scheduler(
         optimizer: Optimizer,
         config: ModelUtilsConfig,
-        state_dict: Union[dict, None],
-    ) -> _LRScheduler:
-        """Define how to get scheduler, default returning None, which is equivalent to use constant
-            learning rate.
-
+    ) -> Union[_LRScheduler, None]:
+        """Define how to get scheduler.
         Args:
             optimizer (Optimizer): optimizer that return by `_get_optimizer`
             config (ModelUtilsConfig): config
-            state_dict (dict, None): if resume by checkpoint, the state_dict is the value return
-                by `scheduler.get_state_dict()`. Otherwise, state_dict is None.
 
         Returns:
-            _LRScheduler: scheduler to use. return None to use constant learning rate.
+            _LRScheduler: scheduler to use. return None to train without scheduler.
         """
         # pylint: disable=unused-argument
         return None
@@ -103,7 +98,7 @@ class BaseModelUtils:
     def start_new_training(cls, model: nn.Module, config: ModelUtilsConfig):
         
         optimizer = cls._get_optimizer(model, config)
-        scheduler = cls._get_scheduler(optimizer, config, None)
+        scheduler = cls._get_scheduler(optimizer, config)
         # init for history and log
         rootname = formatted_now()
         root = os.path.join(config.log_dir, rootname)
@@ -167,7 +162,10 @@ class BaseModelUtils:
         model.to(config.device)
         optimizer = cls._get_optimizer(model, config)
         optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-        scheduler = cls._get_scheduler(optimizer, config, checkpoint.scheduler_state_dict)
+
+        scheduler = cls._get_scheduler(optimizer, config)
+        if scheduler is not None:
+            scheduler.load_state_dict(checkpoint.scheduler_state_dict)
         
         input_root = os.path.dirname(checkpoint_path)
         rootname = os.path.basename(input_root)

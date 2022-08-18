@@ -1,5 +1,14 @@
 # Change Log
 
+
+### 0.1.5
+
+- update logger relatives
+- make checking hooks only work on subclasses
+
+- _get_scheduler no longer need to load_state_dict manually
+
+
 ### 0.1.4
 
 - support scheduler

@@ -185,8 +185,24 @@ class BaseConfig(NamespaceDict):
         print(str(self), file=file, end="")
         return
     
-def register_checking_hook(func):
-    BaseConfig.__checking_hooks__.append(func)
-    return func
+    @classmethod
+    def register_checking_hook(cls, func: Callable):
+        def wrapper(self):
+            if not isinstance(self, cls):
+                return
+            if isinstance(func, staticmethod):
+                func.__func__()
+            elif func.__code__.co_argcount == 1:
+                func(self)
+            elif func.__code__.co_argcount == 0:
+                func()
+            else:
+                raise Exception(
+                    "except 0 or 1 arguments of checking function, "
+                    f"but {func.__code__.co_argcount} was given"
+                )
+            return 
+        cls.__checking_hooks__.append(wrapper)
+        return func
 
-register_checking_hook(Mutable.check_mutable_implementation)
+BaseConfig.register_checking_hook(Mutable.check_mutable_implementation)

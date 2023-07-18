@@ -372,16 +372,16 @@ class BaseModelUtils:
         """
         raise NotImplementedError
     
-    def train(self, epochs: int, trainset: Dataset, validset: Dataset = None,
-                testset: Dataset = None) -> str:
+    def train(self, epochs: int, train_set: Dataset, valid_set: Dataset = None,
+                test_set: Dataset = None) -> str:
         """start training
 
         Args:
             epochs (int): defalut to None, if None. train to the epochs store in checkpoint.
             Specify to change the target epochs
-            validset (Dataset): Optional but unlike testset it is not supposed to be omit,
+            valid_set (Dataset): Optional but unlike testset it is not supposed to be omit,
                 unless you are testing your model by overfit it or something else.
-            testset (Dataset): Optional.
+            test_set (Dataset): Optional.
 
         Returns:
             str: json path as the history
@@ -390,9 +390,9 @@ class BaseModelUtils:
         assert epochs > self.start_epoch,\
             f"expect epochs > {self.start_epoch}, got: epochs={epochs}"
         
-        if validset is None:
+        if valid_set is None:
             self.logger.warning(
-                "Warning: You are Not passing the validset\n"
+                "Warning: You are Not passing the valid_set\n"
                 "make sure you know what yor are doing."
             )
 
@@ -401,14 +401,14 @@ class BaseModelUtils:
         for epoch in range(self.start_epoch, epochs):
 
             self.logger.info(f"Epoch: {epoch + 1} / {epochs}")
-            train_criteria = self._train_epoch(trainset)
+            train_criteria = self._train_epoch(train_set)
             
             valid_criteria = None
             if (
-                validset is not None
+                valid_set is not None
                 and (epoch + 1 - self.start_epoch) % self.config.epochs_per_eval == 0
             ):
-                valid_criteria = self._eval_epoch(validset)
+                valid_criteria = self._eval_epoch(valid_set)
 
             stat = Stat(
                 epoch=epoch + 1,
@@ -436,8 +436,8 @@ class BaseModelUtils:
                 self.history_utils.log_history(stat)
 
         self.logger.info(f"Training is finish for epochs: {epochs}")
-        if testset is not None:
-            stat.test_criteria = self._eval_epoch(testset)
+        if test_set is not None:
+            stat.test_criteria = self._eval_epoch(test_set)
             stat.display()
         
         self.start_epoch = epochs

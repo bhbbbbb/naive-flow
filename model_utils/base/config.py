@@ -1,5 +1,6 @@
+from __future__ import annotations
 from io import StringIO
-from typing import Callable, List, TypeVar, Any, Union
+from typing import Callable, List, TypeVar, Any, Union, Generic
 from .namespace_dict import NamespaceDict
 
 class Writable:
@@ -23,6 +24,7 @@ PropertyGetterT = TypeVar("PropertyGetterT", bound=Callable[[Any], Any])
 PropertySetterT = TypeVar("PropertySetterT", bound=Callable[[Any, Any], None])
 MemberSetterT = TypeVar("MemberSetterT", bound=Callable[[Any, Any], Any])
 FunctionSetterT = TypeVar("FunctionSetterT", bound=Callable[[Any], Any])
+ClsT = TypeVar("ClsT")
 
 
 class Mutable(property):
@@ -73,7 +75,7 @@ class Mutable(property):
                     self._data[_idx] = setter(obj, val)
                     return
             else:
-                raise Exception(
+                raise ValueError(
                     "count of arguments for setter is supposed to be exactly 1 or 2.",
                 )
             setter_ = default_setter
@@ -100,7 +102,7 @@ class Mutable(property):
                 raise NotImplementedError(
                     f"property '{data.msg}' is mark as Mutable, but without setter implemented."
                 )
-class BaseConfig(NamespaceDict):
+class BaseConfig(NamespaceDict, Generic[ClsT]):
     """simple wrap of NamespaceDict with utils for config"""
 
     __checking_hooks__: List[Callable] = []
@@ -140,7 +142,7 @@ class BaseConfig(NamespaceDict):
             elif func.__code__.co_argcount == 0:
                 func()
             else:
-                raise Exception(
+                raise ValueError(
                     "except 0 or 1 arguments of checking function, "
                     f"but {func.__code__.co_argcount} was given"
                 )
@@ -186,7 +188,10 @@ class BaseConfig(NamespaceDict):
         return
     
     @classmethod
-    def register_checking_hook(cls, func: Callable):
+    def register_checking_hook(
+        cls: ClsT,
+        func: Union[Callable[[], None], Callable[[ClsT], None]]
+    ):
         def wrapper(self):
             if not isinstance(self, cls):
                 return
@@ -197,7 +202,7 @@ class BaseConfig(NamespaceDict):
             elif func.__code__.co_argcount == 0:
                 func()
             else:
-                raise Exception(
+                raise ValueError(
                     "except 0 or 1 arguments of checking function, "
                     f"but {func.__code__.co_argcount} was given"
                 )

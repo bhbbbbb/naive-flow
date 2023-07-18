@@ -2,7 +2,7 @@ import os
 import re
 from datetime import datetime
 from argparse import Namespace
-from typing import Union
+from typing import Union, Optional
 import logging
 
 import torch
@@ -35,7 +35,78 @@ class ModelStates(Namespace):
     
 
 class BaseModelUtils:
-    """Base ModelUtils"""
+    """Base Model Utilities for training a given model
+
+    - Predefined utils for training given model,
+        including features (should be properly configured):
+        1. Auto logging
+        1. Auto saving checkpoints
+        1. Auto Plotting
+        1. Early Stopping
+        1. K-fold Cross Validatoin
+
+    ## Abstract Methods
+
+    There are four member methods that are abstract and required overreided, which are
+
+    1. `_get_optimizer` &mdash; define how and what the optimizer to use.
+
+    ```
+    @staticmethod
+    def _get_optimizer(model: nn.Module, config: ModelUtilsConfig) ->\
+        torch.optim.Optimizer: ...
+    ```
+
+    2. `_get_scheduler` &mdash; define how and what the scheduler to use,
+    can be omitted to use no scheduler.
+
+    ```
+    @staticmethod
+    def _get_scheduler(
+        optimizer: Optimizer,
+        config: ModelUtilsConfig,
+    ) -> Optional[_LRScheduler]:
+    ```
+
+    3. `_train_epoch` &mdash; implement method for training a **single** epoch.
+    Notice that the actual training process `train` has been predefined to enable
+    the features going to be mentioned. Thus `train` should not be implemented manually,
+    and `_train_epoch` method would be called in the method `train`.
+
+    ```
+    def _train_epoch(self, train_dataset) -> Criteria: ...
+    ```
+
+    4. `_eval_epoch` &mdash; implement method for evaluating a **single** epoch.
+
+    ```
+    def _eval_epoch(self, eval_dataset) -> Criteria: ...
+    ```
+
+        
+    ---
+
+    ## Predefined Attributes
+
+    - `train` &mdash; start training
+    - `plot_history` &mdash; plot the history
+
+
+    ---
+
+    ## Predefined Classmethods
+
+    - `load_checkpoint` &mdash; load from specific checkpoint by its path.
+    - `load_last_checkpoint` &mdash; load latest saved checkpoint automatically.
+    - `load_last_checkpoint_from_dir` &mdash; load latest checkpoint saved in given directory.
+
+    ---
+
+    ## Advanced
+
+    TODO
+
+    """
 
     model: nn.Module
     config: ModelUtilsConfig
@@ -82,7 +153,7 @@ class BaseModelUtils:
     def _get_scheduler(
         optimizer: Optimizer,
         config: ModelUtilsConfig,
-    ) -> Union[_LRScheduler, None]:
+    ) -> Optional[_LRScheduler]:
         """Define how to get scheduler.
         Args:
             optimizer (Optimizer): optimizer that return by `_get_optimizer`
@@ -189,6 +260,17 @@ class BaseModelUtils:
     @classmethod
     def load_last_checkpoint_from_dir(cls, model: nn.Module, dir_path: str,
                 config: ModelUtilsConfig = None):
+        """Load latest checkpoint saved in given directory
+
+        Args:
+            model (nn.Module): _description_
+            dir_path (str): path to the directory.
+            config (ModelUtilsConfig, optional): _description_. Defaults to None.
+            If omitted, automatically use the configurations saved in checkpoint.
+
+        Returns:
+            ModelUtils
+        """
 
         PATTERN = r".+?_epoch_(\d+)"
         max_epoch = 0
@@ -217,6 +299,15 @@ class BaseModelUtils:
 
     @classmethod
     def load_last_checkpoint(cls, model: nn.Module, config: ModelUtilsConfig):
+        """Load latest saved checkpoint automatically
+
+        Args:
+            model (nn.Module): _description_
+            config (ModelUtilsConfig): _description_
+
+        Returns:
+            ModelUtils
+        """
 
         TIME_FORMAT_PATTERN = r"^\d{8}T\d{2}-\d{2}-\d{2}"
         def is_timeformatted_dir(name: str) -> bool:

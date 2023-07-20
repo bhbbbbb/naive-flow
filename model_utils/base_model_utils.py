@@ -392,11 +392,11 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
         return name
     
 
-    def _train_epoch(self, train_set: TrainArgsT) -> Criteria:
+    def _train_epoch(self, train_data: TrainArgsT) -> Criteria:
         """train a single epoch
 
         Args:
-            train_set(Any): argument passed by `train(train_set=...)`. Usually a dataset or a 
+            train_data(Any): argument passed by `train(train_data=...)`. Usually a dataset or a 
                 dataloader would be passed.
         
         Returns:
@@ -404,11 +404,11 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
         """
         raise NotImplementedError
     
-    def _eval_epoch(self, eval_set: EvalArgsT) -> Criteria:
+    def _eval_epoch(self, eval_data : EvalArgsT) -> Criteria:
         """evaluate single epoch
 
         Args:
-            eval_set(Any): argument passed by `train(valid_set=...)` or `train(test_set=...).
+            eval_data(Any): argument passed by `train(valid_data=...)` or `train(test_data=...).
                 Usually a dataset or a dataloader would be passed.
 
         Returns:
@@ -419,9 +419,9 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
     def train(
         self,
         epochs: int,
-        train_set: TrainArgsT,
-        valid_set: EvalArgsT = None,
-        test_set: EvalArgsT = None
+        train_data: TrainArgsT,
+        valid_data: EvalArgsT = None,
+        test_data: EvalArgsT = None
     ) -> History:
         """start training
 
@@ -429,14 +429,14 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
             epochs (int): defalut to None, if None. train to the epochs store in checkpoint.
             Specify to change the target epochs
 
-            train_set (Any): Arugument to be further passed to `_train_epoch`. Usually dataset
+            train_data (Any): Arugument to be further passed to `_train_epoch`. Usually dataset
                 or dataloader.
 
-            valid_set (Any, Optional): Arugument to be further passed to `_eval_epoch`.
+            valid_data (Any, Optional): Arugument to be further passed to `_eval_epoch`.
                 Usually dataset or dataloader. Optional but unlike testset it is not supposed to
                 be omit, unless you are testing your model by overfit it or something else.
 
-            test_set (Any, Optional): Arugument to be further passed to `_eval_epoch`. Usually
+            test_data (Any, Optional): Arugument to be further passed to `_eval_epoch`. Usually
                 dataset or dataloader. Optional.
 
         Returns:
@@ -446,9 +446,9 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
         assert epochs > self.start_epoch,\
             f"expect epochs > {self.start_epoch}, got: epochs={epochs}"
         
-        if valid_set is None:
+        if valid_data is None:
             self.logger.warning(
-                "Warning: You are Not passing the valid_set\n"
+                "Warning: You are Not passing the valid_data\n"
                 "make sure you know what yor are doing."
             )
 
@@ -457,14 +457,14 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
         for epoch in range(self.start_epoch, epochs):
 
             self.logger.info(f"Epoch: {epoch + 1} / {epochs}")
-            train_criteria = self._train_epoch(train_set)
+            train_criteria = self._train_epoch(train_data)
             
             valid_criteria = None
             if (
-                valid_set is not None
+                valid_data is not None
                 and (epoch + 1 - self.start_epoch) % self.config.epochs_per_eval == 0
             ):
-                valid_criteria = self._eval_epoch(valid_set)
+                valid_criteria = self._eval_epoch(valid_data)
                 es_handler.update(valid_criteria)
 
             stat = Stat(
@@ -505,8 +505,8 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
                 self.history_utils.log_history(stat)
 
         self.logger.info(f"Training is finish for epochs: {epochs}")
-        if test_set is not None:
-            stat.test_criteria = self._eval_epoch(test_set)
+        if test_data is not None:
+            stat.test_criteria = self._eval_epoch(test_data)
             stat.display()
         
         self.start_epoch = epochs

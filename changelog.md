@@ -1,6 +1,12 @@
 # Change Log
 
 
+### 0.1.6
+
+- support load_best_checkpoint
+- add checkpoint_info to History
+- fix bug of get_logger
+
 ### 0.1.5
 
 - update logger relatives

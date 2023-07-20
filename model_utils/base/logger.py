@@ -15,6 +15,9 @@ def get_logger(name: str = None, log_file_root: str = None):
     """
     logger = logging.getLogger(name)
 
+    if logger.hasHandlers():
+        return logger
+
     logger.setLevel(logging.DEBUG)
 
     if log_file_root is not None:

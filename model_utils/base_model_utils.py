@@ -2,17 +2,16 @@ import os
 import re
 from datetime import datetime
 from argparse import Namespace
-from typing import Union, Optional
+from typing import Union, Optional, TypeVar, Generic
 import logging
 
 import torch
 from torch import nn
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
-from torch.utils.data import Dataset
 
 from .config import ModelUtilsConfig
-from .base.history import HistoryUtils, Stat
+from .base.history import HistoryUtils, Stat, SaveReason, History
 from .base.logger import get_logger
 from .base.criteria import Criteria
 from .base.early_stopping_handler import EarlyStoppingHandler
@@ -33,8 +32,10 @@ class ModelStates(Namespace):
     stat: Stat
 
     
+TrainArgsT = TypeVar("TrainArgsT")
+EvalArgsT = TypeVar("EvalArgsT")
 
-class BaseModelUtils:
+class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
     """Base Model Utilities for training a given model
 
     - Predefined utils for training given model,
@@ -143,6 +144,26 @@ class BaseModelUtils:
         self.logger.debug(model)
         self.logger.debug(optimizer)
         self.logger.debug(config)
+
+        self._init()
+        return
+
+    def _init(self):
+        """initialize function called at the end of the default construstor `__init__`.
+        The default constructor is supposed NOT to be overrided, override `_init` instead.
+
+        Notice that the `_init` is still private and is only expected to be overrided by 
+        subclasses instead of using as constructor.
+
+        Default to do nothing. Override to change the behaviors. E.g. loss function can
+        be set as member here
+
+        ```
+        def _init(self): # override on subclass
+            self.fn = Loss()
+            return
+        ```
+        """
         return
 
     @staticmethod
@@ -309,33 +330,48 @@ class BaseModelUtils:
             ModelUtils
         """
 
-        TIME_FORMAT_PATTERN = r"^\d{8}T\d{2}-\d{2}-\d{2}"
-        def is_timeformatted_dir(name: str) -> bool:
-            """check whether a name of dir is start with formatted time and not empty
-
-            E.g:
-                - [v] 20220330T16-31-29_some_addtion 
-                - [x] ResNet_1 
-            """
-            match = re.match(TIME_FORMAT_PATTERN, name)
-            if not match:
-                return False
-            
-            path = os.path.join(config.log_dir, name)
-            return os.path.isdir(path)
-
-        arr = [dir_name for dir_name in os.listdir(config.log_dir)
-                                            if is_timeformatted_dir(dir_name)]
-
-        last_train_root = max(arr)
-        last_train_root = os.path.join(config.log_dir, last_train_root)
         return cls.load_last_checkpoint_from_dir(
             model,
-            dir_path=last_train_root,
+            dir_path=_get_latest_time_formatted_dir(config.log_dir),
             config=config,
         )
+    
+    @classmethod
+    def load_best_checkpoint(
+        cls,
+        model: nn.Module,
+        config_or_dir: Union[ModelUtilsConfig, str],
+    ):
+        """load best checkpoint from given directory (or through the config.log_dir). If
 
-    def _save(self, cur_epoch: int, stat: Stat) -> str:
+        Args:
+            model (nn.Module): _description_
+            config_or_dir (Union[ModelUtilsConfig, str]): if is directory, find the best checkpoint
+                in the directory. If is config, use `config.log_dir` as the directory.
+        """
+
+        log_dir = config_or_dir if isinstance(config_or_dir, str) else config_or_dir.log_dir
+        root = _get_latest_time_formatted_dir(log_dir)
+        history = HistoryUtils.get_history(root)
+
+        assert history is not None, f"there is no history files found in directory: {root}"
+        
+        best_arr = [
+            checkpoint for checkpoint in history.checkpoints\
+                if checkpoint["save_reason"]["best"]
+        ]
+        
+        assert best_arr, f"There is no checkpoint in directory: {root}"
+
+        info = best_arr[-1]
+
+        return cls.load_checkpoint(
+            model,
+            os.path.join(root, info.name),
+            None if isinstance(config_or_dir, str) else config_or_dir,
+        )
+
+    def __save(self, cur_epoch: int, stat: Stat, save_reason: SaveReason) -> str:
         scheduler_dict = self.scheduler.state_dict() if self.scheduler else {}
         tem = vars(ModelStates(
             start_epoch = cur_epoch + 1,
@@ -352,36 +388,56 @@ class BaseModelUtils:
         path = os.path.join(self.root, name)
         torch.save(tem, path)
         self.logger.info(f"Checkpoint: {name} is saved.")
-        self.history_utils.history.checkpoints[cur_epoch + 1] = name
+        self.history_utils.new_saved_checkpoint(name, cur_epoch, save_reason)
         return name
     
 
-    def _train_epoch(self, train_dataset: Dataset) -> Criteria:
+    def _train_epoch(self, train_set: TrainArgsT) -> Criteria:
         """train a single epoch
 
+        Args:
+            train_set(Any): argument passed by `train(train_set=...)`. Usually a dataset or a 
+                dataloader would be passed.
+        
         Returns:
             Criteria: train_criteria
         """
         raise NotImplementedError
     
-    def _eval_epoch(self, eval_dataset: Dataset) -> Criteria:
+    def _eval_epoch(self, eval_set: EvalArgsT) -> Criteria:
         """evaluate single epoch
+
+        Args:
+            eval_set(Any): argument passed by `train(valid_set=...)` or `train(test_set=...).
+                Usually a dataset or a dataloader would be passed.
 
         Returns:
             Criteria: eval_criteria
         """
         raise NotImplementedError
     
-    def train(self, epochs: int, train_set: Dataset, valid_set: Dataset = None,
-                test_set: Dataset = None) -> str:
+    def train(
+        self,
+        epochs: int,
+        train_set: TrainArgsT,
+        valid_set: EvalArgsT = None,
+        test_set: EvalArgsT = None
+    ) -> History:
         """start training
 
         Args:
             epochs (int): defalut to None, if None. train to the epochs store in checkpoint.
             Specify to change the target epochs
-            valid_set (Dataset): Optional but unlike testset it is not supposed to be omit,
-                unless you are testing your model by overfit it or something else.
-            test_set (Dataset): Optional.
+
+            train_set (Any): Arugument to be further passed to `_train_epoch`. Usually dataset
+                or dataloader.
+
+            valid_set (Any, Optional): Arugument to be further passed to `_eval_epoch`.
+                Usually dataset or dataloader. Optional but unlike testset it is not supposed to
+                be omit, unless you are testing your model by overfit it or something else.
+
+            test_set (Any, Optional): Arugument to be further passed to `_eval_epoch`. Usually
+                dataset or dataloader. Optional.
 
         Returns:
             str: json path as the history
@@ -409,6 +465,7 @@ class BaseModelUtils:
                 and (epoch + 1 - self.start_epoch) % self.config.epochs_per_eval == 0
             ):
                 valid_criteria = self._eval_epoch(valid_set)
+                es_handler.update(valid_criteria)
 
             stat = Stat(
                 epoch=epoch + 1,
@@ -417,20 +474,32 @@ class BaseModelUtils:
             )
             stat.display()
 
-            if es_handler.should_stop(valid_criteria):
-                self.logger.info("Early stopping!")
-                self._save(epoch, stat)
-                break
+            save_reason = SaveReason()
 
             if epoch == epochs - 1:
-                self._save(epoch, stat)
+                save_reason.end = True
             
-            elif (
+            if (
                 self.config.epochs_per_checkpoint
                 and (epoch + 1 - self.start_epoch) % self.config.epochs_per_checkpoint == 0
-                or es_handler.should_save_best()
             ):
-                self._save(epoch, stat)
+                save_reason.regular = self.config.epochs_per_checkpoint
+
+            if es_handler.should_stop(valid_criteria):
+                self.logger.info("Early stopping!")
+                save_reason.early_stopping = True
+                self.__save(epoch, stat, save_reason)
+                break
+
+            if es_handler.best_criteria == valid_criteria: # ref. equal
+                save_reason.best = True
+
+            if (
+                save_reason.end or
+                save_reason.regular or
+                es_handler.should_save_best(valid_criteria)
+            ):
+                self.__save(epoch, stat, save_reason)
 
             if epoch != epochs - 1:
                 self.history_utils.log_history(stat)
@@ -464,3 +533,40 @@ class BaseModelUtils:
 
 def formatted_now():
     return datetime.now().strftime("%Y%m%dT%H-%M-%S")
+
+def _get_latest_time_formatted_dir(log_dir: str):
+    """
+    Structure of log_dir:
+        └──log_dir
+           ├─20220517T01-40-38
+           |      20220517T01-44-38_epoch_10
+           |      20220517T01-44-48_epoch_20
+           │      20220517T01-40-38_history.json
+           │      log.log
+           │
+           └─20220517T01-44-31
+                   20220517T01-44-31_epoch_10
+                   20220517T01-44-41_epoch_20
+                   20220517T01-44-31_history.json
+                   log.log
+    """
+    TIME_FORMAT_PATTERN = r"^\d{8}T\d{2}-\d{2}-\d{2}"
+    def is_timeformatted_dir(name: str) -> bool:
+        """check whether a name of dir is start with formatted time and not empty
+
+        E.g:
+            - [v] 20220330T16-31-29_some_addtion 
+            - [x] ResNet_1 
+        """
+        match = re.match(TIME_FORMAT_PATTERN, name)
+        if not match:
+            return False
+        
+        path = os.path.join(log_dir, name)
+        return os.path.isdir(path)
+
+    arr = [dir_name for dir_name in os.listdir(log_dir)
+                                        if is_timeformatted_dir(dir_name)]
+    last_train_root = max(arr)
+    last_train_root = os.path.join(log_dir, last_train_root)
+    return last_train_root

@@ -21,6 +21,23 @@ class NamespaceDict(Namespace):
                 yield a_dir, self.__getitem__(a_dir)
 
     def asdict(self) -> dict:
+        """return dict, ok with nested `NamespaceDict`
+
+        E.g.
+        ```
+        class Foo(NamespaceDict):
+            a: int
+            b: int
+
+        class Bar(NamespaceDict):
+            foo: Foo
+            c: int
+
+        bar = Bar(c=1, foo=Foo(a=1, b=2))
+        print(bar.asdict())
+        # {'c': 1, 'foo': {'a': 1, 'b': 2}}
+        ```
+        """
         return dict(self)
     
     @staticmethod

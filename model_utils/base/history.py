@@ -57,16 +57,63 @@ class Stat:
     def get_plot_configs(self):
         return self.train_criteria.get_plot_configs()
 
+
+class SaveReason(NamespaceDict):
+
+    def __init__(
+        self,
+        *,
+        early_stopping: bool = False,
+        end: bool = False,
+        regular: int = 0,
+        best: bool = False,
+    ):
+        super().__init__(
+            early_stopping = early_stopping,
+            end = end,
+            regular = regular,
+            best = best,
+        )
+        return
+    
+
+    early_stopping: bool
+    end: bool
+    regular: int # epochs_per_checkpoint
+    best: bool
+
+
+class CheckpointInfo(NamespaceDict):
+
+    def __init__(
+        self,
+        *,
+        name: str,
+        epoch: int,
+        save_reason: SaveReason,
+    ):
+        super().__init__(
+            name = name,
+            epoch = epoch,
+            save_reason = save_reason,
+        )
+        return
+
+    name: str
+    epoch: int
+    save_reason: SaveReason
+
 class History(NamespaceDict):
 
     history: List[dict] # List of Stat in dict format
 
-    checkpoints: dict
+    checkpoints: List[dict] # list of CheckpointInfo in dict format
 
-    def __init__(self, history: List[dict], checkpoints: dict, **_):
+    def __init__(self, history: List[dict], checkpoints: List[dict], **_):
         super().__init__()
         self.history = history
         self.checkpoints = checkpoints
+        return
 
 
 class HistoryUtils:
@@ -84,13 +131,26 @@ class HistoryUtils:
         
         self.path = path or os.path.join(root, f"{root_name}_history.json")
 
-        self.history = history or History(history=[], checkpoints={})
+        self.history = history or History(history=[], checkpoints=[])
         return
     
     @classmethod
     def load_history(
-        cls, input_root: str, root: str, start_epoch: int, logger: logging.Logger
+        cls,
+        input_root: str,
+        root: str,
+        start_epoch: int,
+        logger: logging.Logger,
     ):
+        """
+
+        Args:
+            input_root (str): directory where the history.json locating
+            root (str): directory where the history.json going to save at
+            start_epoch (int): history after `start_epoch` would be trimmed
+            logger (logging.Logger): _description_
+
+        """
         tem = [name for name in os.listdir(input_root) if re.match(cls.HISTORY_JSON_PATTERN, name)]
 
         assert len(tem) <= 1, f"Suppose <= 1 history.json in the folder, but got {len(tem)}"
@@ -112,7 +172,38 @@ class HistoryUtils:
             history_log_path = os.path.join(root, history_log_name)
         return cls(root=root, path=history_log_path, history=history)
 
-    def log_history(self, stat: Stat) -> str:
+    @staticmethod
+    def get_history(root: str) -> Union[History, None]:
+        """get history from `root`, return None if no history file found.
+
+        Args:
+            root (str): root direcotry which should contain history json file
+
+        Returns:
+            Union[History, None]: return None if there is no history file found.
+        """
+        tem = [
+            name for name in os.listdir(root)\
+            if re.match(HistoryUtils.HISTORY_JSON_PATTERN, name)
+        ]
+
+        if len(tem) == 0:
+            return None
+        
+        history_log_path = os.path.join(root, tem[0])
+        with open(history_log_path, "w", encoding="utf8") as fin:
+            tem_dict = json.load(fin)
+            history = History(**tem_dict)
+
+        return history
+
+    def new_saved_checkpoint(self, name: str, epoch: int, save_reason: SaveReason):
+        self.history.checkpoints.append(
+            CheckpointInfo(name=name, epoch=epoch, save_reason=save_reason).asdict()
+        )
+        return
+
+    def log_history(self, stat: Stat) -> History:
         """log history for the statistics coming from new epoch
 
         Args:
@@ -127,7 +218,7 @@ class HistoryUtils:
         with open(self.path, "w", encoding="utf-8") as fout:
             json.dump(self.history.asdict(), fout, indent=4)
         
-        return self.path
+        return self.history
     
     @staticmethod
     def _plot(

@@ -5,8 +5,6 @@ class ModelUtilsConfig(EarlyStoppingConfig):
     device: str = UNIMPLEMENTED
     """Device to use, cpu or gpu"""
 
-    learning_rate: float = UNIMPLEMENTED
-
     epochs_per_checkpoint: int = UNIMPLEMENTED
     """num of epochs per checkpoints
 

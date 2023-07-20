@@ -6,6 +6,7 @@
 - support load_best_checkpoint
 - add checkpoint_info to History
 - fix bug of get_logger
+- both prefix and suffix can work with time-formatted name
 
 ### 0.1.5
 

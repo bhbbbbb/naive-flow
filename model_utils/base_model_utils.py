@@ -293,12 +293,12 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
             ModelUtils
         """
 
-        PATTERN = r".+?_epoch_(\d+)"
+        PATTERN = r"_epoch_(\d+)"
         max_epoch = 0
         max_idx = -1
         save_list = os.listdir(dir_path)
         for idx, save in enumerate(save_list):
-            match = re.match(PATTERN, save)
+            match = re.search(PATTERN, save)
             if match:
                 epoch = int(match.group(1))
                 if epoch > max_epoch:
@@ -550,15 +550,15 @@ def _get_latest_time_formatted_dir(log_dir: str):
                    20220517T01-44-31_history.json
                    log.log
     """
-    TIME_FORMAT_PATTERN = r"^\d{8}T\d{2}-\d{2}-\d{2}"
+    TIME_FORMAT_PATTERN = r"\d{8}T\d{2}-\d{2}-\d{2}"
     def is_timeformatted_dir(name: str) -> bool:
-        """check whether a name of dir is start with formatted time and not empty
+        """check whether a name of dir is contains formatted time and not empty
 
         E.g:
             - [v] 20220330T16-31-29_some_addtion 
             - [x] ResNet_1 
         """
-        match = re.match(TIME_FORMAT_PATTERN, name)
+        match = re.search(TIME_FORMAT_PATTERN, name)
         if not match:
             return False
         
@@ -567,6 +567,9 @@ def _get_latest_time_formatted_dir(log_dir: str):
 
     arr = [dir_name for dir_name in os.listdir(log_dir)
                                         if is_timeformatted_dir(dir_name)]
+    
+    assert arr, f"expect at least one legally formatted dir in '{log_dir}', zero was found"
+
     last_train_root = max(arr)
     last_train_root = os.path.join(log_dir, last_train_root)
     return last_train_root

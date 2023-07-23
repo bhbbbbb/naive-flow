@@ -11,6 +11,7 @@ class Writable:
 
 T = TypeVar("T")
 
+
 class BaseConfig(BaseSettings):
 
     class MutableField(RootModel[T], Generic[T]):
@@ -32,13 +33,36 @@ class BaseConfig(BaseSettings):
         frozen=True,
         extra="allow",
         validate_assignment=True,
+        env_nested_delimiter="__",
+        display_field_padding_len=4,
+        display_field_min_len=16,
     )
 
     def __str__(self):
+        
         sio = StringIO()
         sio.write("Configurations:\n")
-        for field, value in self.model_dump().items():
-            sio.write(f"{field:30} {value}\n")
+
+        def walk_config(prefix: str, config: BaseConfig):
+            for field, value in dict(config).items():
+                if isinstance(value, BaseConfig):
+                    new_prefix = f"{prefix}{field}{self.model_config.get('env_nested_delimiter')}"
+                    yield from walk_config(new_prefix, value)
+                    continue
+
+                yield f"{prefix}{field}", str(value)
+
+        field_value_pairs = list(walk_config("", self))
+        longest_field, _ = max(field_value_pairs, key=lambda p: len(p[0]))
+        padding_len = self.model_config.get("display_field_padding_len", 4)
+        min_len = self.model_config.get("display_field_min_len", 16)
+
+        indent = max(padding_len + len(longest_field), min_len)
+
+        for field, value in field_value_pairs:
+            sio.write(f"{field:{indent}}{value}\n")
+
+
         sio.write("\n")
         string = sio.getvalue()
         sio.close()

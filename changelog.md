@@ -1,5 +1,8 @@
 # Change Log
 
+### 0.2.1
+
+- support nested display
 
 ### 0.2.0
 - adapt pydantic

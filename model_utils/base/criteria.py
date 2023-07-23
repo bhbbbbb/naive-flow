@@ -1,200 +1,388 @@
 from __future__ import annotations
-from typing import List, Union, TypeVar
-from .config import NamespaceDict
+from typing import (
+    Union,
+    ClassVar,
+    Optional,
+    Dict,
+    Type,
+    overload,
+    Callable,
+    Protocol,
+    Iterable,
+    TypedDict,
+)
+from collections.abc import Sequence
+from functools import cached_property
+from typing_extensions import Unpack
+
+from pydantic import RootModel, BaseModel, ConfigDict
 
 
-class PlotConfig(NamespaceDict):
-    short_name: str
+class CriterionConfigFields(TypedDict, total=False):
+    """for type hints using `Unpack`"""
+    name: str
+    primary: bool
     full_name: str
-
     plot: bool
-    """Whether plot this criterion"""
+    default_lower_limit_for_plot: Optional[float]
+    default_upper_limit_for_plot: Optional[float]
 
-    default_lower_limit_for_plot: float
-    default_upper_limit_for_plot: float
+class CriterionConfig(BaseModel):
 
-class _Criterion:
+    model_config = ConfigDict(validate_assignment=True)
 
-    short_name: str
-    full_name: str
+    name: str
+    """Name which has to be unique, serves like key of dict"""
 
-    plot: bool
-    """Whether plot this criterion"""
-
-    default_lower_limit_for_plot: float
-    default_upper_limit_for_plot: float
-
-    value: float
     primary: bool
     """whether be used as primary criterion"""
 
-    def __init__(self, value: float):
-        self.value = value
-        return
+    full_name: str
+    """Full Name used to display"""
+
+    plot: bool
+    """Whether plot this criterion"""
+
+    default_lower_limit_for_plot: Optional[float]
+    default_upper_limit_for_plot: Optional[float]
+
+    def update(self, /, **kwargs: Unpack[CriterionConfigFields]):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+        return self
+
+# class MergeInfoMeta(type):
+#     def __new__(cls, name, bases, attrs: dict):
+#         info = {}
+
+#         for base in bases:
+#             info.update(getattr(base, "_info", {}))
+        
+#         info.update(attrs.get("_info", {}))
+
+
+#         attrs["_info"] = info
+
+#         return super().__new__(cls, name, bases, attrs)
+        
+            
+class CriterionLike(Protocol):
+    config: ClassVar[CriterionConfig]
+    """static: describes information of this criterion"""
+
+    root: float
+
+    def better_than(self, rhs: _Criterion) -> bool:...
+
+    def __repr__(self) -> str:...
+
+    def __str__(self) -> str:...
     
+    @classmethod
+    def config_copy(cls):...
+
+    @classmethod
+    def is_primary(cls) -> bool:...
+    
+    @classmethod
+    def name(cls) -> str:...
+
+    @property
+    def value(self) -> float:...
+
+class _Criterion(RootModel[float]):
+
+    config: ClassVar[CriterionConfig]
+    """static: describes information of this criterion"""
+
+    root: float
+
     def better_than(self, rhs: _Criterion) -> bool:
         raise NotImplementedError
 
     def __repr__(self) -> str:
-        return str(self.value)
-
-class Loss(_Criterion):
-
-    short_name: str = "loss"
-    full_name: str = "Loss"
-    
-    plot: bool = True
-    """Whether plot this criterion"""
-
-    default_lower_limit_for_plot: float = None
-    default_upper_limit_for_plot: float = None
-
-    primary: bool = True
-
-    def __init__(self, value: float):
-        super().__init__(value)
-        return
-    
-    def better_than(self, rhs: Loss):
-        return self.value < rhs.value
+        return f"{self.config.name}: {self.root}"
 
     def __str__(self) -> str:
-        if self.value < 1e-4 or self.value > 1e6:
-            return f"{self.value:.6e}"
-        return f"{self.value:.6f}"
+        return f"{self.config.full_name}: {self.root}"
+    
+    @classmethod
+    def config_copy(cls):
+        return cls.config.model_copy()
+
+    @classmethod
+    def is_primary(cls) -> bool:
+        return cls.config.primary
+    
+    @classmethod
+    def name(cls) -> str:
+        return cls.config.name
+
+    @property
+    def value(self) -> float:
+        return self.root
+
+class Loss(_Criterion):
+    """Default Loss Critierion
+
+    Info:
+        primary (bool): True.
+        name (str): loss
+        full_name (str): Loss
+        plot (bool): True
+        default_lower_limit_for_plot (float): None
+        default_upper_limit_for_plot (float): None
+
+    """
+
+    config: ClassVar[CriterionConfig] = CriterionConfig(
+        name = "loss",
+        full_name = "Loss",
+        plot = True,
+        default_lower_limit_for_plot = None,
+        default_upper_limit_for_plot = None,
+        primary = True,
+    )
+
+    def better_than(self, rhs: Loss):
+        return self.root < rhs.root
+
+    def __str__(self) -> str:
+        if self.root < 1e-4 or self.root > 1e6:
+            return f"{self.config.full_name}:  {self.root:.6e}"
+        return f"{self.config.full_name}:  {self.root:.6f}"
     
 
 class Accuarcy(_Criterion):
+    """Default Accuracy Critierion
 
-    short_name: str = "acc"
-    full_name: str = "Accuracy"
-    plot: bool = True
+    Attributes:
+        primary (bool): False
+        name (str): acc
+        full_name (str): Accuracy
+        plot (bool): True
+        default_lower_limit_for_plot (float): 0.0
+        default_upper_limit_for_plot (float): 1.0
 
-    default_lower_limit_for_plot: float = 0.0
-    default_upper_limit_for_plot: float = 1.0
+    """
 
-    primary: bool = False
-    
-    def __init__(self, value: float):
-        super().__init__(value)
-        return
+    config: ClassVar[CriterionConfig] = CriterionConfig(
+        name = "acc",
+        full_name = "Accuracy",
+        plot = True,
+        default_lower_limit_for_plot = 0.0,
+        default_upper_limit_for_plot = 1.0,
+        primary = False,
+    )
     
     def better_than(self, rhs: Accuarcy):
-        return self.value > rhs.value
+        return self.root > rhs.root
 
     def __str__(self):
-        return f"{self.value * 100:.4f} %"
+        return f"{self.config.full_name}:  {self.root * 100:.4f} %"
 
-_CriterionT = TypeVar("_CriterionT", bound=_Criterion)
 
-class Criteria:
+class Criteria(RootModel[Dict[str, _Criterion]]):
     """Container of Criterion"""
 
-    _data: List[_Criterion]
-    primary_criterion: _Criterion
-    __registered_criteria: List[_Criterion] = []
+    root: Dict[str, _Criterion]
+    # _primary_criterion: _Criterion
+    __registered_criteria: ClassVar[Dict[str, Type[_Criterion]]] = {}
 
-    def __init__(self, *criteria: Union[_Criterion, float]):
-        if len(criteria) == 1 and isinstance(criteria[0], float):
-            criteria = [Loss(criteria[0])]
-        
-        is_got_primary = False
-        self._data = criteria
-        for criterion in criteria:
+    
+    @overload
+    def __init__(self, *criteria: _Criterion):...
 
-            if criterion.primary:
-                assert is_got_primary is False, (
-                    f"Got both '{self.primary_criterion.short_name}' and "
-                    f"'{criterion.short_name}' set primary to True,"
-                    "but expected num of primary <= 1."
-                )
-                self.primary_criterion = criterion
-                is_got_primary = True
-        
+    @overload
+    def __init__(self, criterion_list: Iterable[_Criterion]):...
+
+    @overload
+    def __init__(self, **key_value: float):...
+
+    def __init__(self, *criteria: _Criterion, **key_value: float):
+
+        assert bool(criteria) != bool(key_value), (
+            "Cannot use both arguments and keywords arguments when initialization."
+        )
+
+        if bool(criteria) and isinstance(criteria[0], Sequence): # Criteria([c1, c2, ...])
+            assert len(criteria) == 1
+            criteria = criteria[0]
+
+        key_criterion = (
+            {criterion.name(): criterion for criterion in criteria}
+            or
+            {k: self.__registered_criteria[k](v) for k, v in key_value.items()}
+        )
+
+        super().__init__(**key_criterion)
         return
 
-    def better_than(self, rhs: Union[Criteria, None]):
+    @cached_property
+    def primary_criterion(self):
+        _primary_criterion = None
+        for criterion in self.root.values():
+            if criterion.is_primary():
+                assert _primary_criterion is None, (
+                    f"Got both '{_primary_criterion.name()}' and "
+                    f"'{criterion.name()}' set primary to True,"
+                    "but expected num of primary <= 1."
+                )
+                _primary_criterion = criterion
+        
+        assert _primary_criterion is not None
+        return _primary_criterion
+
+    def better_than(self, rhs: Optional[Criteria]) -> bool:
         if rhs is not None:
+            assert self.primary_criterion is not None
             return self.primary_criterion.better_than(rhs.primary_criterion)
         return True
     
+    __gt__ = better_than
+    
     def __iter__(self):
-        for criterion in self._data:
-            yield criterion.short_name, criterion.value
+        yield from self.root.keys()
+    
+    def __getitem__(self, index: str):
+        return self.root[index]
+    
+    def items(self):
+        yield from self.root.items()
 
-    def asdict(self):
-        return dict(self)
+    # def asdict(self):
+    #     return dict(self)
 
     def display(self):
-        for criterion in self._data:
-            print(f"{criterion.full_name}:  {criterion}", end="\t")
+        for criterion in self.root.values():
+            print(str(criterion), end="\t")
         print("")
         return
     
-    def get_plot_configs(self) -> dict[str, PlotConfig]:
-        configs = {}
-        for criterion in self._data:
-            configs[criterion.short_name] = PlotConfig(
-                short_name=criterion.short_name,
-                full_name=criterion.full_name,
-                plot=criterion.plot,
-                default_lower_limit_for_plot=criterion.default_lower_limit_for_plot,
-                default_upper_limit_for_plot=criterion.default_upper_limit_for_plot,
-            )
-        return configs
+    # def get_plot_configs(self) -> dict[str, CriterionInfo]:
+        # configs = {}
+        # for criterion in self._data:
+        #     configs[criterion.name] = CriterionInfo(
+        #         name=criterion.name,
+        #         full_name=criterion.full_name,
+        #         plot=criterion.plot,
+        #         default_lower_limit_for_plot=criterion.default_lower_limit_for_plot,
+        #         default_upper_limit_for_plot=criterion.default_upper_limit_for_plot,
+        #     )
+        # return configs
+        # return
 
+    @overload
     @staticmethod
     def register_criterion(
-        *,
-        short_name: str = None,
-        full_name: str = None,
-        plot: bool = None,
-        default_lower_limit_for_plot: float = None,
-        default_upper_limit_for_plot: float = None,
-        primary: bool = None,
-    ):
+        new_criterion_name: str,
+        **info: Unpack[CriterionConfig],
+    ) -> Callable[[Type[_Criterion]], Type[_Criterion]]:
+        """
+        Example:
+        ```
+        NewCriterion = @Criteria.register_criterion(
+            'NewCriterion',
+            name='new_name',
+            primary=False,
+        )(Loss)
+        ```
+        """
 
-        # if criterion is not None:
-        #     Criteria.__registered_criteria.append(criterion)
-        #     return criterion
-        
-        def wrapper(_criterion: type[_CriterionT]) -> type[_CriterionT]:
-            NewCriterion = type("NewCriterion", (_criterion, ), {})
+    @overload
+    @staticmethod
+    def register_criterion(NewCriterion: Type[_Criterion]) -> Type[_Criterion]:
+        # pylint: disable=invalid-name
+        """
+        Example:
+        ```
+        @Criteria.register_criterion
+        class NewLoss(Loss):
+            config = Loss.config_copy().update(**new_config)
+        ```
+        """
 
-            if short_name is not None:
-                NewCriterion.short_name = short_name
-            if full_name is not None:
-                NewCriterion.full_name = full_name
-            if plot is not None:
-                NewCriterion.plot = plot
-            if default_lower_limit_for_plot is not None:
-                NewCriterion.default_lower_limit_for_plot = default_lower_limit_for_plot
-            if default_upper_limit_for_plot is not None:
-                NewCriterion.default_upper_limit_for_plot = default_upper_limit_for_plot
-            if primary is not None:
-                NewCriterion.primary = primary
-            
-            registerd_keys = [criterion.short_name for criterion in Criteria.__registered_criteria]
-            key = getattr(NewCriterion, "short_name", None)
-            assert key is not None and key not in registerd_keys, (
-                f"The short_name '{key}' is already registerd, "
-                "note that all of the short_name of criteria have to be unique."
-            )
-            Criteria.__registered_criteria.append(NewCriterion)
-            return NewCriterion
-        
-        return wrapper
+    @overload
+    @staticmethod
+    def register_criterion() -> Callable[[Type[_Criterion]], Type[_Criterion]]:
+        """
+        Example:
+        ```
+        @Criteria.register_criterion()
+        class NewLoss(Loss):
+            config = Loss.config_copy().update(**new_config)
+        ```
+        """
     
     @staticmethod
-    def get_plot_configs_from_registered_criterion() -> dict[str, PlotConfig]:
-        configs = {}
-        for criterion in Criteria.__registered_criteria:
-            configs[criterion.short_name] = PlotConfig(
-                short_name=criterion.short_name,
-                full_name=criterion.full_name,
-                plot=criterion.plot,
-                default_lower_limit_for_plot=criterion.default_lower_limit_for_plot,
-                default_upper_limit_for_plot=criterion.default_upper_limit_for_plot,
+    def register_criterion(
+        NewCriterion_or_new_criterion_name: Union[Type[_Criterion], str] = None,
+        **info: Unpack[CriterionConfig],
+    ):
+        # pylint: disable=invalid-name
+        """
+        ```
+        NewCriterion = @Criteria.register_criterion(
+            'NewCriterion',
+            name='new_name',
+            primary=False,
+        )(Loss)
+
+        ```
+        ```
+        @Criteria.register_criterion
+        class NewLoss(Loss):
+            config = Loss.config_copy().update(**new_config)
+        ```
+        ```
+        @Criteria.register_criterion()
+        class NewLoss(Loss):
+            config = Loss.config_copy().update(**new_config)
+        ```
+        """
+        def __register_new_criteria(name: str, Criterion: Type[_Criterion]):
+            assert name not in Criteria.__registered_criteria, (
+                f"The name '{name}' is already registerd, "
+                "note that all of the name of criteria have to be unique."
             )
-        return configs
-    
+            Criteria.__registered_criteria[name] = Criterion
+            return
+
+        if isinstance(NewCriterion_or_new_criterion_name, str):
+            def wrapper_from_base(BaseCriterion: Type[_Criterion]) -> Type[_Criterion]:
+
+                NewCriterion = type(
+                    NewCriterion_or_new_criterion_name,
+                    (BaseCriterion, ),
+                    {"_info": BaseCriterion.config_copy(**info)}
+                )
+
+                __register_new_criteria(NewCriterion.name(), NewCriterion)
+                return NewCriterion
+            return wrapper_from_base
+        
+        def wrapper_add_new(NewCriterion: Type[_Criterion]) -> Type[_Criterion]:
+            assert issubclass(NewCriterion, _Criterion)
+            __register_new_criteria(
+                NewCriterion.name(),
+                NewCriterion
+            )
+            return NewCriterion
+        
+        if NewCriterion_or_new_criterion_name is None:
+            return wrapper_add_new
+
+        return wrapper_add_new(NewCriterion_or_new_criterion_name)
+
+    # @staticmethod
+    # def get_plot_configs_from_registered_criterion() -> dict[str, CriterionInfo]:
+    #     configs = {}
+    #     for criterion in Criteria.__registered_criteria:
+    #         configs[criterion.name] = CriterionInfo(
+    #             name=criterion.name,
+    #             full_name=criterion.full_name,
+    #             plot=criterion.plot,
+    #             default_lower_limit_for_plot=criterion.default_lower_limit_for_plot,
+    #             default_upper_limit_for_plot=criterion.default_upper_limit_for_plot,
+    #         )
+    #     return configs

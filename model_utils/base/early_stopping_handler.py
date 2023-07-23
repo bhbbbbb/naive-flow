@@ -1,15 +1,15 @@
 from .criteria import Criteria
-from .config import BaseConfig, UNIMPLEMENTED
+from .config import BaseConfig
 
 class EarlyStoppingConfig(BaseConfig):
 
-    early_stopping: bool = UNIMPLEMENTED
+    early_stopping: bool
     """whether enable early stopping"""
 
-    early_stopping_threshold: int = UNIMPLEMENTED
+    early_stopping_threshold: int
     """Threshold for early stopping mode. Only matter when EARLY_STOPPING is set to True."""
 
-    save_best: bool = UNIMPLEMENTED
+    save_best: bool
     """set True to save every time when the model reach best valid score."""
 
     
@@ -57,7 +57,7 @@ class EarlyStoppingHandler:
 
     def _print_best_criterion(self):
         best_criterion = self.best_criteria.primary_criterion
-        print(f"Current best {best_criterion.full_name}: {best_criterion}")
+        print(f"Current best {best_criterion.config.full_name}: {best_criterion}")
         return
     
     def should_save_best(self, new_criteria: Criteria):

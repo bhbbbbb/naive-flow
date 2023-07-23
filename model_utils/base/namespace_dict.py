@@ -1,5 +1,7 @@
 from argparse import Namespace
+from typing_extensions import deprecated
 
+@deprecated
 class NamespaceDict(Namespace):
     
     __length__: int

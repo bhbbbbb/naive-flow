@@ -1,33 +1,21 @@
 import logging
-from typing import List, Tuple, Union, Dict
+from typing import List, Tuple, Union, Dict, Optional
 import os
 import re
 import json
 import matplotlib.pyplot as plt
 import pandas as pd
-from .namespace_dict import NamespaceDict
-from .criteria import Criteria, PlotConfig
+from pydantic import BaseModel
+
+from .criteria import Criteria, CriterionConfig
 
 
-class Stat:
-    train_criteria: Criteria
-    valid_criteria: Criteria
-    test_criteria: Criteria
+class Stat(BaseModel):
     epoch: int
+    train_criteria: Criteria
+    valid_criteria: Optional[Criteria] = None
+    test_criteria: Optional[Criteria] = None
 
-    def __init__(
-        self,
-        epoch: int,
-        train_criteria: Criteria,
-        valid_criteria: Criteria = None,
-        test_criteria: Criteria = None,
-    ):
-        self.epoch = epoch
-        self.train_criteria = train_criteria
-        self.valid_criteria = valid_criteria
-        self.test_criteria = test_criteria
-        return
-    
     def display(self):
         
         if self.test_criteria is not None:
@@ -43,78 +31,56 @@ class Stat:
                 self.valid_criteria.display()
         return
     
-    def __iter__(self):
-        for key, value in vars(self).items():
-            if key == "epoch":
-                yield key, value
-            elif value is not None:
-                assert isinstance(value, Criteria), f"got {type(value)}"
-                yield key, value.asdict()
+    # def __iter__(self):
+    #     for key, value in vars(self).items():
+    #         if key == "epoch":
+    #             yield key, value
+    #         elif value is not None:
+    #             assert isinstance(value, Criteria), f"got {type(value)}"
+    #             yield key, value.asdict()
 
-    def asdict(self):
-        return dict(self)
+    # def asdict(self):
+    #     return dict(self)
     
-    def get_plot_configs(self):
-        return self.train_criteria.get_plot_configs()
+    # def get_plot_configs(self):
+    #     return self.train_criteria.get_plot_configs()
 
 
-class SaveReason(NamespaceDict):
+class SaveReason(BaseModel):
 
-    def __init__(
-        self,
-        *,
-        early_stopping: bool = False,
-        end: bool = False,
-        regular: int = 0,
-        best: bool = False,
-    ):
-        super().__init__(
-            early_stopping = early_stopping,
-            end = end,
-            regular = regular,
-            best = best,
-        )
-        return
-    
-
-    early_stopping: bool
-    end: bool
-    regular: int # epochs_per_checkpoint
-    best: bool
+    early_stopping: bool = False
+    end: bool = False
+    regular: int = 0 # epochs_per_checkpoint
+    best: bool = False
 
 
-class CheckpointInfo(NamespaceDict):
-
-    def __init__(
-        self,
-        *,
-        name: str,
-        epoch: int,
-        save_reason: SaveReason,
-    ):
-        super().__init__(
-            name = name,
-            epoch = epoch,
-            save_reason = save_reason,
-        )
-        return
+class CheckpointInfo(BaseModel):
 
     name: str
     epoch: int
     save_reason: SaveReason
 
-class History(NamespaceDict):
+class History(BaseModel):
 
-    history: List[dict] # List of Stat in dict format
+    stats: List[Stat]
 
-    checkpoints: List[dict] # list of CheckpointInfo in dict format
+    checkpoints: List[CheckpointInfo]
 
-    def __init__(self, history: List[dict], checkpoints: List[dict], **_):
-        super().__init__()
-        self.history = history
-        self.checkpoints = checkpoints
-        return
+    # def __init__(self, history: List[Stat], checkpoints: List[CheckpointInfo], **_):
+    #     super().__init__()
+    #     self.stats = history
+    #     self.checkpoints = checkpoints
+    #     return
+    
+    def get_best_stat(self) -> Stat:
+        return max(self.stats, key=lambda s: s.valid_criteria)
 
+    def get_best_criterion(self):
+        return self.get_best_stat().valid_criteria.primary_criterion
+
+    def get_best_checkpoint_info(self):
+        bests = [checkpoint for checkpoint in self.checkpoints if checkpoint.save_reason.best]
+        return bests[-1]
 
 class HistoryUtils:
     """Utils for handling the operation relate to history.json"""
@@ -131,7 +97,7 @@ class HistoryUtils:
         
         self.path = path or os.path.join(root, f"{root_name}_history.json")
 
-        self.history = history or History(history=[], checkpoints=[])
+        self.history = history or History(stats=[], checkpoints=[])
         return
     
     @classmethod
@@ -164,11 +130,11 @@ class HistoryUtils:
 
             input_history_log_path = os.path.join(input_root, history_log_name)
             with open(input_history_log_path, "r", encoding="utf-8") as fin:
-                tem_dict = json.load(fin)
-                history = History(**tem_dict)
+                # tem_dict = json.load(fin)
+                history = History.model_validate_json(fin.read())
 
-                if len(history.history) > start_epoch:
-                    history.history = history.history[:start_epoch]
+                if len(history.stats) > start_epoch:
+                    history.stats = history.stats[:start_epoch]
             history_log_path = os.path.join(root, history_log_name)
         return cls(root=root, path=history_log_path, history=history)
 
@@ -191,15 +157,16 @@ class HistoryUtils:
             return None
         
         history_log_path = os.path.join(root, tem[0])
-        with open(history_log_path, "w", encoding="utf8") as fin:
-            tem_dict = json.load(fin)
-            history = History(**tem_dict)
+        with open(history_log_path, "r", encoding="utf8") as fin:
+            # tem_dict = json.load(fin)
+            # history = History(**tem_dict)
+            history = History.model_validate_json(fin.read())
 
         return history
 
     def new_saved_checkpoint(self, name: str, epoch: int, save_reason: SaveReason):
         self.history.checkpoints.append(
-            CheckpointInfo(name=name, epoch=epoch, save_reason=save_reason).asdict()
+            CheckpointInfo(name=name, epoch=epoch, save_reason=save_reason)
         )
         return
 
@@ -210,13 +177,13 @@ class HistoryUtils:
             stat (Stat): statistics data
 
         Returns:
-            str: path to the log file history.json
+            History: history object
         """
-        self.history.history.append(stat.asdict())
+        self.history.stats.append(stat)
 
         os.makedirs(self.root, exist_ok=True)
         with open(self.path, "w", encoding="utf-8") as fout:
-            json.dump(self.history.asdict(), fout, indent=4)
+            json.dump(self.history.model_dump(exclude_none=True), fout, indent=4)
         
         return self.history
     
@@ -283,7 +250,7 @@ class HistoryUtils:
         output_dir: str,
         show: bool = False,
         save: bool = True,
-        plot_configs: Dict[str, PlotConfig] = None,
+        criterion_configs: Dict[str, CriterionConfig] = None,
     ):
         """plot the loss-epoch figure
 
@@ -297,25 +264,36 @@ class HistoryUtils:
         """
         if isinstance(history_or_path, str):
             with open(history_or_path, "r", encoding="utf-8") as fin:
-                tem_dict = json.load(fin)
-                history = History(**tem_dict)
+                # tem_dict = json.load(fin)
+                history = History.model_validate_json(fin.read())
         else:
             history = history_or_path
 
-        train_criteria: List[dict] = [data["train_criteria"] for data in history.history]
+        train_criteria_list = [stat.train_criteria for stat in history.stats]
         valid_tem = [
-            (data["epoch"], data["valid_criteria"]) for data in history.history\
-                if "valid_criteria" in data
+            (stat.epoch, stat.valid_criteria) for stat in history.stats\
+                if hasattr(stat, "valid_criteria") and stat.valid_criteria is not None
         ]
-        valid_epochs, valid_criteria = zip(*valid_tem)
-        valid_epochs = list(valid_epochs)
-        valid_criteria: List[dict]
+        valid_epochs, valid_criteria_list = list(zip(*valid_tem))
+        valid_epochs: List[int]
+        valid_criteria_list: List[Criteria]
 
-        train_df = pd.DataFrame(train_criteria)
-        valid_df = pd.DataFrame(valid_criteria)
+        def model_dump(x: Criteria):
+            return x.model_dump()
+        train_df = pd.DataFrame(map(train_criteria_list, model_dump))
+        valid_df = pd.DataFrame(map(valid_criteria_list, model_dump))
 
-        plot_configs = plot_configs or Criteria.get_plot_configs_from_registered_criterion()
-        for key, config in plot_configs.items():
+        def get_config_set(criteria: Criteria):
+            return {name: c.config for name, c in criteria.items()}
+        # train_criterion_config_set = {}
+        # criterion_set = set(train_criteria[0]).union(valid_criteria[0])
+        criterion_configs = {
+            **get_config_set(train_criteria_list[0]),
+            **get_config_set(valid_criteria_list[0]),
+            **(criterion_configs or {})
+        }
+        # plot_configs = plot_configs or Criteria.get_plot_configs_from_registered_criterion()
+        for key, config in criterion_configs.items():
             if not config.plot:
                 continue
 
@@ -339,7 +317,7 @@ class HistoryUtils:
         self,
         show: bool = False,
         save: bool = True,
-        plot_configs: Dict[str, PlotConfig] = None,
+        plot_configs: Dict[str, CriterionConfig] = None,
     ):
         """plot the loss-epoch figure
 
@@ -353,6 +331,6 @@ class HistoryUtils:
             self.root,
             show=show,
             save=save,
-            plot_configs=plot_configs,
+            criterion_configs=plot_configs,
         )
         return

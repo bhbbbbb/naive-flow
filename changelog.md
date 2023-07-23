@@ -1,6 +1,16 @@
 # Change Log
 
 
+### 0.2.0
+- adapt pydantic
+- deprecate NamespaceDict
+- change return type of `_train_epoch` and `_eval_epoch` from `Criteria` to
+`Union[_Criterion, Tuple[_Criterion, ...]]`
+- revise factories of BaseModelUtils
+    - load_last_checkpoint_from_dir --> _load_last_checkpoint_from_dir
+    - now use load_last_checkpoint(dir_path =...) instead
+
+
 ### 0.1.6
 
 - support load_best_checkpoint

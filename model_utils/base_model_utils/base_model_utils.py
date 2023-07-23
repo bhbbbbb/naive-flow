@@ -2,7 +2,8 @@ import os
 import re
 from datetime import datetime
 from argparse import Namespace
-from typing import Union, Optional, TypeVar, Generic
+from typing import Union, Optional, TypeVar, Generic, Tuple, overload
+from typing_extensions import Self
 import logging
 
 import torch
@@ -11,10 +12,10 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
 
 from .config import ModelUtilsConfig
-from .base.history import HistoryUtils, Stat, SaveReason, History
-from .base.logger import get_logger
-from .base.criteria import Criteria
-from .base.early_stopping_handler import EarlyStoppingHandler
+from ..base.history import HistoryUtils, Stat, SaveReason, History
+from ..base.logger import get_logger
+from ..base.criteria import Criteria, _Criterion
+from ..base.early_stopping_handler import EarlyStoppingHandler
 
 
 class ModelStates(Namespace):
@@ -227,7 +228,7 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
         if as_dict:
             return checkpoint.config
 
-        return ModelUtilsConfig(**checkpoint.config)
+        return ModelUtilsConfig.model_construct(**checkpoint.config)
 
     @classmethod
     def load_checkpoint(
@@ -248,7 +249,7 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
 
         tem = torch.load(checkpoint_path)
         checkpoint = ModelStates(**tem)
-        config = config or ModelUtilsConfig(**checkpoint.config)
+        config = config or ModelUtilsConfig.model_construct(**checkpoint.config)
 
         model.load_state_dict(checkpoint.model_state_dict)
         model.to(config.device)
@@ -279,7 +280,7 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
         )
 
     @classmethod
-    def load_last_checkpoint_from_dir(cls, model: nn.Module, dir_path: str,
+    def _load_last_checkpoint_from_dir(cls, model: nn.Module, dir_path: str,
                 config: ModelUtilsConfig = None):
         """Load latest checkpoint saved in given directory
 
@@ -318,29 +319,98 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
             config=config,
         )
 
+
+    @overload
     @classmethod
-    def load_last_checkpoint(cls, model: nn.Module, config: ModelUtilsConfig):
-        """Load latest saved checkpoint automatically
+    def load_last_checkpoint(
+        cls,
+        model: nn.Module,
+        dir_path: str,
+        config: Optional[ModelUtilsConfig] = None
+    ) -> Self:
+        """load last checkpoint from the given directory path, use given config if provided.
+        Else use the config saved in the checkpoint.
 
         Args:
-            model (nn.Module): _description_
-            config (ModelUtilsConfig): _description_
+            model (nn.Module): 
+            dir_path (str): path to the directory contains checkpoints
+            config (Optional[ModelUtilsConfig], optional): config to use. Defaults to None.
+        """
+
+    @overload
+    @classmethod
+    def load_last_checkpoint(
+        cls,
+        model: nn.Module,
+        config: ModelUtilsConfig
+    ) -> Self:
+        """load last checkpoint from the latest directory in `config.log_dir`,
+            and use the given config.
+
+        Args:
+            model (nn.Module): 
+            config (ModelUtilsConfig): config to use.
+        """
+
+    @classmethod
+    def load_last_checkpoint(
+        cls,
+        model: nn.Module,
+        *dir_path_or_config: Union[ModelUtilsConfig, str]
+    ):
+        """Load latest saved checkpoint automatically
+
+        Returns:
+            ModelUtils
+        """
+        if isinstance(dir_path_or_config[0], str):
+            dir_path = dir_path_or_config[0]
+            config = dir_path_or_config[1] if len(dir_path_or_config) > 1 else None
+        else:
+            config = dir_path_or_config[0]
+            dir_path = _get_latest_time_formatted_dir(config.log_dir)
+
+
+        return cls._load_last_checkpoint_from_dir(
+            model,
+            dir_path=dir_path,
+            config=config,
+        )
+    
+    @overload
+    @classmethod
+    def load_best_checkpoint(
+        cls,
+        model: nn.Module,
+        dir_path: str,
+        config: Optional[ModelUtilsConfig] = None,
+    ) -> Self:
+        """load best checkpoint from `dir_path`, and use the given config if provided. Else
+            use config saved in the checkpoint instead.
 
         Returns:
             ModelUtils
         """
 
-        return cls.load_last_checkpoint_from_dir(
-            model,
-            dir_path=_get_latest_time_formatted_dir(config.log_dir),
-            config=config,
-        )
-    
+    @overload
     @classmethod
     def load_best_checkpoint(
         cls,
         model: nn.Module,
-        config_or_dir: Union[ModelUtilsConfig, str],
+        config: ModelUtilsConfig,
+    ) -> Self:
+        """load best checkpoint from latest directory in config.log_dir, and use the given config
+
+        Returns:
+            ModelUtils
+        """
+
+    @classmethod
+    def load_best_checkpoint(
+        cls,
+        model: nn.Module,
+        *dir_path_or_config: Union[ModelUtilsConfig, str],
+        # config: Optional[ModelUtilsConfig],
     ):
         """load best checkpoint from given directory (or through the config.log_dir). If
 
@@ -350,25 +420,24 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
                 in the directory. If is config, use `config.log_dir` as the directory.
         """
 
-        log_dir = config_or_dir if isinstance(config_or_dir, str) else config_or_dir.log_dir
-        root = _get_latest_time_formatted_dir(log_dir)
+        if isinstance(dir_path_or_config[0], str):
+            root = dir_path_or_config[0]
+            config = dir_path_or_config[1] if len(dir_path_or_config) > 1 else None
+        else:
+            config = dir_path_or_config[0]
+            root = _get_latest_time_formatted_dir(config.log_dir)
+
         history = HistoryUtils.get_history(root)
 
         assert history is not None, f"there is no history files found in directory: {root}"
         
-        best_arr = [
-            checkpoint for checkpoint in history.checkpoints\
-                if checkpoint["save_reason"]["best"]
-        ]
-        
-        assert best_arr, f"There is no checkpoint in directory: {root}"
 
-        info = best_arr[-1]
+        info = history.get_best_checkpoint_info()
 
         return cls.load_checkpoint(
             model,
             os.path.join(root, info.name),
-            None if isinstance(config_or_dir, str) else config_or_dir,
+            config=config,
         )
 
     def __save(self, cur_epoch: int, stat: Stat, save_reason: SaveReason) -> str:
@@ -378,8 +447,8 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
             model_state_dict = self.model.state_dict(),
             optimizer_state_dict = self.optimizer.state_dict(),
             scheduler_state_dict = scheduler_dict,
-            config = self.config.asdict(),
-            stat = stat.asdict(),
+            config = self.config.model_dump(),
+            stat = stat.model_dump(),
         ))
         now = formatted_now()
         
@@ -392,7 +461,7 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
         return name
     
 
-    def _train_epoch(self, train_data: TrainArgsT) -> Criteria:
+    def _train_epoch(self, train_data: TrainArgsT) -> Union[_Criterion, Tuple[_Criterion, ...]]:
         """train a single epoch
 
         Args:
@@ -404,7 +473,7 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
         """
         raise NotImplementedError
     
-    def _eval_epoch(self, eval_data : EvalArgsT) -> Criteria:
+    def _eval_epoch(self, eval_data : EvalArgsT) -> Union[_Criterion, Tuple[_Criterion, ...]]:
         """evaluate single epoch
 
         Args:
@@ -457,14 +526,14 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
         for epoch in range(self.start_epoch, epochs):
 
             self.logger.info(f"Epoch: {epoch + 1} / {epochs}")
-            train_criteria = self._train_epoch(train_data)
+            train_criteria = Criteria(self._train_epoch(train_data))
             
             valid_criteria = None
             if (
                 valid_data is not None
                 and (epoch + 1 - self.start_epoch) % self.config.epochs_per_eval == 0
             ):
-                valid_criteria = self._eval_epoch(valid_data)
+                valid_criteria = Criteria(self._eval_epoch(valid_data))
                 es_handler.update(valid_criteria)
 
             stat = Stat(
@@ -491,7 +560,7 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
                 self.__save(epoch, stat, save_reason)
                 break
 
-            if es_handler.best_criteria == valid_criteria: # ref. equal
+            if id(es_handler.best_criteria) == id(valid_criteria):
                 save_reason.best = True
 
             if (
@@ -506,7 +575,7 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
 
         self.logger.info(f"Training is finish for epochs: {epochs}")
         if test_data is not None:
-            stat.test_criteria = self._eval_epoch(test_data)
+            stat.test_criteria = Criteria(self._eval_epoch(test_data))
             stat.display()
         
         self.start_epoch = epochs
@@ -526,9 +595,9 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
         )
         return
     
-    @staticmethod
-    def get_default_plot_configs():
-        return Criteria.get_plot_configs_from_registered_criterion()
+    # @staticmethod
+    # def get_default_plot_configs():
+    #     return Criteria.get_plot_configs_from_registered_criterion()
 
 
 def formatted_now():

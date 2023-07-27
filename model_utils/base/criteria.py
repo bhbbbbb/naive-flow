@@ -276,7 +276,7 @@ class Criteria(RootModel[Dict[str, _Criterion]]):
     @staticmethod
     def register_criterion(
         new_criterion_name: str,
-        **info: Unpack[CriterionConfig],
+        **info: Unpack[CriterionConfigFields],
     ) -> Callable[[Type[_Criterion]], Type[_Criterion]]:
         """
         Example:
@@ -317,7 +317,7 @@ class Criteria(RootModel[Dict[str, _Criterion]]):
     @staticmethod
     def register_criterion(
         NewCriterion_or_new_criterion_name: Union[Type[_Criterion], str] = None,
-        **info: Unpack[CriterionConfig],
+        **info: Unpack[CriterionConfigFields],
     ):
         # pylint: disable=invalid-name
         """
@@ -354,7 +354,7 @@ class Criteria(RootModel[Dict[str, _Criterion]]):
                 NewCriterion = type(
                     NewCriterion_or_new_criterion_name,
                     (BaseCriterion, ),
-                    {"_info": BaseCriterion.config_copy(**info)}
+                    {"config": BaseCriterion.config_copy().update(**info)}
                 )
 
                 __register_new_criteria(NewCriterion.name(), NewCriterion)

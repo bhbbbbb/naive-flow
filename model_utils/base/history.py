@@ -1,5 +1,5 @@
 import logging
-from typing import List, Tuple, Union, Dict, Optional
+from typing import List, Tuple, Union, Dict, Optional, Sequence
 import os
 import re
 import json
@@ -217,7 +217,7 @@ class HistoryUtils:
 
         def _plot_(data, label: str):
             if data is not None:
-                if isinstance(data[0], list):
+                if isinstance(data[0], Sequence):
                     plt.plot(*data, label=label)
                 else:
                     plt.plot(data, label=label)
@@ -271,7 +271,7 @@ class HistoryUtils:
 
         train_criteria_list = [stat.train_criteria for stat in history.stats]
         valid_tem = [
-            (stat.epoch, stat.valid_criteria) for stat in history.stats\
+            (stat.epoch - 1, stat.valid_criteria) for stat in history.stats\
                 if hasattr(stat, "valid_criteria") and stat.valid_criteria is not None
         ]
         valid_epochs, valid_criteria_list = list(zip(*valid_tem))
@@ -280,8 +280,8 @@ class HistoryUtils:
 
         def model_dump(x: Criteria):
             return x.model_dump()
-        train_df = pd.DataFrame(map(train_criteria_list, model_dump))
-        valid_df = pd.DataFrame(map(valid_criteria_list, model_dump))
+        train_df = pd.DataFrame(map(model_dump, train_criteria_list))
+        valid_df = pd.DataFrame(map(model_dump, valid_criteria_list))
 
         def get_config_set(criteria: Criteria):
             return {name: c.config for name, c in criteria.items()}

@@ -1,27 +1,15 @@
 from .criteria import Criteria
-from .config import BaseConfig
 
-class EarlyStoppingConfig(BaseConfig):
-
-    early_stopping: bool
-    """whether enable early stopping"""
-
-    early_stopping_threshold: int
-    """Threshold for early stopping mode. Only matter when EARLY_STOPPING is set to True."""
-
-    save_best: bool
-    """set True to save every time when the model reach best valid score."""
-
-    
 class EarlyStoppingHandler:
 
     best_criteria: Criteria
     counter: int
 
-    def __init__(self, config: EarlyStoppingConfig):
+    # def __init__(self, config: EarlyStoppingConfig):
+    def __init__(self, early_stopping_rounds: int):
         self.best_criteria = None
         self.counter = 0
-        self.config = config
+        self.early_stopping_rounds = early_stopping_rounds
         return
     
     def update(self, new_criteria: Criteria):
@@ -45,14 +33,13 @@ class EarlyStoppingHandler:
             self._print_best_criterion()
             return False
 
-        threshold = self.config.early_stopping_threshold\
-                        if self.config.early_stopping else "infinity"
+        threshold = self.early_stopping_rounds or "infinity"
         print("Early stopping counter:" f"{self.counter} / {threshold}")
         
         self._print_best_criterion()
         return (
-            self.config.early_stopping
-            and self.counter == self.config.early_stopping_threshold
+            self.early_stopping_rounds > 0
+            and self.counter == self.early_stopping_rounds
         )
 
     def _print_best_criterion(self):
@@ -60,8 +47,8 @@ class EarlyStoppingHandler:
         print(f"Current best {best_criterion.config.full_name}: {best_criterion}")
         return
     
-    def should_save_best(self, new_criteria: Criteria):
+    def is_best(self, new_criteria: Criteria):
         return (
-            self.config.save_best and self.counter == 0 and self.best_criteria == new_criteria
+            self.counter == 0 and id(self.best_criteria) == id(new_criteria)
             and self.best_criteria is not None
         )

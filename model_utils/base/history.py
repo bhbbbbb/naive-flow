@@ -165,10 +165,31 @@ class HistoryUtils:
         return history
 
     def new_saved_checkpoint(self, name: str, epoch: int, save_reason: SaveReason):
+        """_summary_
+
+        Args:
+            name (str): _description_
+            epoch (int): 1-index-based
+            save_reason (SaveReason): _description_
+        """
         self.history.checkpoints.append(
             CheckpointInfo(name=name, epoch=epoch, save_reason=save_reason)
         )
         return
+    
+    def mark_checkpoint_deleted(self, name: str):
+        """_summary_
+
+        Args:
+            epoch (int): 1-index-based
+        """
+
+        for checkpoint_info in reversed(self.history.checkpoints):
+            if name == checkpoint_info.name:
+                checkpoint_info.name = "DELETED"
+                break
+        return
+    
 
     def log_history(self, stat: Stat) -> History:
         """log history for the statistics coming from new epoch

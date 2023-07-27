@@ -3,6 +3,9 @@
 ### 0.2.1
 
 - support nested display
+- support save_n_best
+- remove config `early_stopping` and `early_stopping_threshold`, use `early_stopping_rounds`
+instead.
 
 ### 0.2.0
 - adapt pydantic

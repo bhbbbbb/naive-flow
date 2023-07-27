@@ -452,12 +452,31 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
         ))
         now = formatted_now()
         
-        name = f"{now}_epoch_{cur_epoch + 1}"
+        is_best = "_best" if save_reason.best else ""
+        name = f"{now}_epoch_{cur_epoch + 1}{is_best}"
         os.makedirs(self.root, exist_ok=True)
         path = os.path.join(self.root, name)
         torch.save(tem, path)
-        self.logger.info(f"Checkpoint: {name} is saved.")
-        self.history_utils.new_saved_checkpoint(name, cur_epoch, save_reason)
+        self.logger.info(f"Checkpoint: {name} was saved.")
+        self.history_utils.new_saved_checkpoint(name, cur_epoch + 1, save_reason)
+
+        if self.config.save_n_best:
+            # delete redundant checkpoints
+            pat = r"_epoch_(\d+)_best"
+            best_checkpoints = [
+                (int(match.group(1)), filename) for filename in os.listdir(self.root)
+                    if (match := re.search(pat, filename)) is not None
+            ]
+            best_checkpoints.sort(key=lambda t: t[0])
+            not_n_best = best_checkpoints[:-self.config.save_n_best]
+
+            for _epoch, filename in not_n_best:
+                os.remove(os.path.join(self.root, filename))
+                self.logger.info(
+                    f"Checkpoint: {filename} was deleted due to save_n_best={self.config.save_n_best}."
+                )
+                self.history_utils.mark_checkpoint_deleted(filename)
+                
         return name
     
 
@@ -521,7 +540,7 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
                 "make sure you know what yor are doing."
             )
 
-        es_handler = EarlyStoppingHandler(self.config)
+        es_handler = EarlyStoppingHandler(self.config.early_stopping_rounds)
 
         for epoch in range(self.start_epoch, epochs):
 
@@ -566,7 +585,7 @@ class BaseModelUtils(Generic[TrainArgsT, EvalArgsT]):
             if (
                 save_reason.end or
                 save_reason.regular or
-                es_handler.should_save_best(valid_criteria)
+                es_handler.is_best(valid_criteria) and self.config.save_n_best
             ):
                 self.__save(epoch, stat, save_reason)
 

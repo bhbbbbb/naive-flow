@@ -341,10 +341,10 @@ class Criteria(RootModel[Dict[str, _Criterion]]):
         ```
         """
         def __register_new_criteria(name: str, Criterion: Type[_Criterion]):
-            assert name not in Criteria.__registered_criteria, (
-                f"The name '{name}' is already registerd, "
-                "note that all of the name of criteria have to be unique."
-            )
+            # assert name not in Criteria.__registered_criteria, (
+            #     f"The name '{name}' is already registerd, "
+            #     "note that all of the name of criteria have to be unique."
+            # )
             Criteria.__registered_criteria[name] = Criterion
             return
 

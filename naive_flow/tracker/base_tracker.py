@@ -3,9 +3,10 @@ import re
 import socket
 from datetime import datetime
 from fnmatch import fnmatch
-from typing import Union, Tuple, overload, TypedDict, Type, List, get_type_hints
+from typing import Union, Tuple, overload, TypedDict, Type, List, get_type_hints, Literal, Union
 from functools import wraps
 import logging
+from argparse import ArgumentParser, Namespace
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -116,14 +117,15 @@ class BaseTracker:
             
             return criterion_tag, criterion_type
         
+        def default_arg(arg, value):
+            return arg if arg is not None else value
+
         if config is None:
-            def default(arg, value):
-                return arg if arg is not None else value
             config = TrackerConfig(
-                log_root_dir=default(log_root_dir, "runs"),
-                epochs_per_checkpoint=default(epochs_per_checkpoint, 0),
-                early_stopping_rounds=default(early_stopping_rounds, 0),
-                save_n_best=default(save_n_best, 1),
+                log_root_dir=default_arg(log_root_dir, "runs"),
+                epochs_per_checkpoint=default_arg(epochs_per_checkpoint, 0),
+                early_stopping_rounds=default_arg(early_stopping_rounds, 0),
+                save_n_best=default_arg(save_n_best, 1),
                 enable_logging=enable_logging,
                 comment=comment,
             )
@@ -134,7 +136,7 @@ class BaseTracker:
             if criterion is None:
                 raise ValueError("The early stopping is enable while criterion is not provided.")
         
-        self.metrics = dict(map(parse_criterion_arg, default(metrics, [])))
+        self.metrics = dict(map(parse_criterion_arg, default_arg(metrics, [])))
         self.criterion_tag, self.criterion_type = parse_criterion_arg(criterion)\
                                                         if criterion is not None else (None, None)
 
@@ -359,7 +361,7 @@ class BaseTracker:
         )
 
     
-    def _start(self):
+    def _start_new_training(self):
         
         writer = BaseTracker._init_writer(
             log_root_dir=self.config.log_root_dir, comment=self.config.comment)
@@ -380,14 +382,20 @@ class BaseTracker:
 
     def range(self, to_epoch: int):
 
-        
+        if not self._loaded:
+            args = parse_args()
+            if args.command in ["best", "load_best"]:
+                self.load_best_checkpoint(log_dir=args.log_dir, delete_ok=args.delete_ok)
+            elif args.command in ["latest", "load_latest"]:
+                self.load_latest_checkpoint(log_dir=args.log_dir, delete_ok=args.delete_ok)
+            elif args.command == "load":
+                self.load_checkpoint(args.checkpoint, delete_ok=args.delete_ok)
+            else:
+                self._start_new_training()
+
         if to_epoch <= self.start_epoch:
             raise ValueError(f"expect to_epoch > {self.start_epoch}, got: to_epoch={to_epoch}")
 
-        if not self._loaded:
-            self._start()
-        # This line will not be run when `start(to_epoch)` is called.
-        # Instead, called when the interation started
 
         # pylint: disable=attribute-defined-outside-init
         self._es_handler = EarlyStoppingHandler(
@@ -404,7 +412,7 @@ class BaseTracker:
 
             if self._evaluated is False:
                 if self.config.early_stopping_rounds > 0:
-                    self.logger.warn(
+                    self.logger.warning(
                         "EarlyStoppingWarning:\n"
                         "Early stopping is enable while no criterion scalar has been added.\n"
                         "TODO: provide ways to suppress this warning\n" #TODO
@@ -617,3 +625,83 @@ def prompt_delete_later(checkpoint_name: str, to_delete: List[str]):
 
         if option.lower() == "k":
             return False
+
+class Args(Namespace):
+    command: Literal["load", "best", "load_best", "latest", "load_latest"]
+    checkpoint: Union[str, None]
+    delete_ok: Union[bool, None]
+    log_dir: Union[str, None]
+
+def parse_args() -> Args:
+
+    arg_parser = ArgumentParser(
+        "tracker",
+        description=(
+            "Command line interface to decide whether start a new training or "
+            "load from existing checkpoint"
+        )
+    )
+
+    # arg_parser.add_argument(
+    #     "-e", "--to-epoch",
+    #     type=int,
+    #     help=(
+    #         "Specify to_epoch passed to tracker.range(to_epoch). "
+    #         "Note that this will OVERRIDE the argument written in your code."
+    #     ),
+    # )
+    sub_parsers = arg_parser.add_subparsers(dest="command")
+
+    load_parser = sub_parsers.add_parser(
+        "load",
+        help="Load a specific checkpoint",
+    )
+    load_parser.add_argument(
+        "checkpoint",
+        type=str,
+        help="Path to the checkpoint",
+    )
+    load_parser.add_argument(
+        "--delete-ok",
+        type=bool,
+    )
+
+    load_best_parser = sub_parsers.add_parser(
+        "load_best",
+        aliases=["best"],
+        help="Load the best checkpoint in the latest log_dir",
+    )
+    load_best_parser.add_argument(
+        "--delete-ok",
+        type=bool,
+    )
+    load_best_parser.add_argument(
+        "--log-dir",
+        type=str,
+        help=(
+            "Load the best checkpoint from the given log-dir. If not specified, "
+            "Tracker will detect and use the latest log-dir in the parameter log_root_dir"
+        )
+    )
+
+    load_latest_parser = sub_parsers.add_parser(
+        "load_latest",
+        aliases=["latest"],
+        help=(
+            "Load the latest checkpoint in the given log-dir. "
+            "If log-dir is not specified, load the latest checkpoint in the latest log-dir"
+        ),
+    )
+    load_latest_parser.add_argument(
+        "--delete-ok",
+        type=bool,
+    )
+    load_latest_parser.add_argument(
+        "--log-dir",
+        type=str,
+        help=(
+            "Load the latest checkpoint from the given log-dir. If not specified, "
+            "Tracker will detect and use the latest log-dir in the parameter log_root_dir"
+        )
+    )
+    return arg_parser.parse_args()

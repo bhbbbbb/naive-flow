@@ -1,12 +1,13 @@
+from typing import Union
 from pydantic import field_validator, NonNegativeInt
 from ..base.config import BaseConfig
 
-class ModelUtilsConfig(BaseConfig):
+class TrackerConfig(BaseConfig):
 
-    device: str
-    """Device to use, cpu or gpu"""
+    log_root_dir: str = "runs"
+    """dir for saving checkpoints and log files"""
 
-    epochs_per_checkpoint: NonNegativeInt
+    epochs_per_checkpoint: NonNegativeInt = 0
     """num of epochs per checkpoints
 
         Example:
@@ -14,21 +15,15 @@ class ModelUtilsConfig(BaseConfig):
             0: for not save until finish
     """
 
-    log_dir: str
-    """dir for saving checkpoints and log files"""
-
-    logging: bool
+    enable_logging: bool = True
     """whether log to file "log.log". It"s useful to turn this off when inference on kaggle"""
 
-    epochs_per_eval: NonNegativeInt
-    """Number of epochs per evalution"""
-
-    early_stopping_rounds: NonNegativeInt
+    early_stopping_rounds: NonNegativeInt = 0
     """Early stopping threshold. If early_stopping_rounds == 0, then early stopping would
     not be enable. I.e. model would train until the specified epoch
     """
 
-    save_n_best: NonNegativeInt
+    save_n_best: NonNegativeInt = 1
     """only save n latest models with best validation scorea.
 
     If set to 0, no checkpoint would be saved due to its validation score. (still some
@@ -38,9 +33,11 @@ class ModelUtilsConfig(BaseConfig):
     get deleted.
     """
 
+    comment: Union[str, None] = None
+    """Same as the argument of SummaryWriter"""
 
     @field_validator(
-        "early_stopping_rounds", "save_n_best", "epochs_per_eval", "epochs_per_checkpoint",
+        "early_stopping_rounds", "save_n_best", "epochs_per_checkpoint",
         mode="after"
     )
     @classmethod

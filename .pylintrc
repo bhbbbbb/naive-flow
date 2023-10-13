@@ -6,7 +6,7 @@
 extension-pkg-whitelist=torch
 
 # Specify a score threshold to be exceeded before program exits with error.
-fail-under=10.0
+fail-under=10
 
 # Add files or directories to the blacklist. They should be base names, not
 # paths.
@@ -18,7 +18,7 @@ ignore-patterns=
 
 # Python code to execute, usually for sys.path manipulation such as
 # pygtk.require().
-init-hook="from pylint.config import find_pylintrc; import os, sys; sys.path.append(os.path.dirname(find_pylintrc()))"
+init-hook=""
 
 # Use multiple processes to speed up Pylint. Specifying 0 will auto-detect the
 # number of processors available to use.
@@ -93,7 +93,7 @@ enable=c-extension-no-member
 # which contain the number of messages in each category, as well as 'statement'
 # which is the total number of statements analyzed. This score is used by the
 # global evaluation report (RP0004).
-evaluation=10.0 - ((float(5 * error + warning + refactor + convention) / statement) * 10)
+evaluation=10 - ((float(5 * error + warning + refactor + convention) / statement) * 10)
 
 # Template used to display messages. This is a python new-style format string
 # used to format the message information. See doc for all details.

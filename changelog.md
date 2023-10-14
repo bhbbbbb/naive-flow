@@ -1,5 +1,14 @@
 # Change Log
 
+### 0.3.1
+    - remove mutable field  
+    - allow recursive get config value
+        - E.g. config = Config(sub_config=SubConfig(a=1), b=2)
+        - assert config.a == 1
+        - recursive only works in the members those are instance of BaseConfig
+### 0.3.0
+
+
 ### 0.2.1
 
 - support nested display

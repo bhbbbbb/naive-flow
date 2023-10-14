@@ -29,13 +29,15 @@ class BaseConfig(BaseSettings):
         sio.write("Configurations:\n")
 
         def walk_config(prefix: str, config: BaseConfig):
+
+            dumpped_config = config.model_dump()
             for field, value in dict(config).items():
                 if isinstance(value, BaseConfig):
                     new_prefix = f"{prefix}{field}{self.model_config.get('env_nested_delimiter')}"
                     yield from walk_config(new_prefix, value)
                     continue
 
-                yield f"{prefix}{field}", str(value)
+                yield f"{prefix}{field}", dumpped_config[field]
 
         field_value_pairs = list(walk_config("", self))
         longest_field, _ = max(field_value_pairs, key=lambda p: len(p[0]))

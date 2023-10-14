@@ -8,6 +8,7 @@ from functools import wraps
 import logging
 from argparse import ArgumentParser, Namespace
 
+import termcolor
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
@@ -435,7 +436,7 @@ class BaseTracker:
                 self._save(epoch, save_reason)
                 break
 
-            if self._es_handler.best_epoch == epoch:
+            if self._es_handler.is_best_epoch(epoch):
                 save_reason.best = True
 
             if (
@@ -480,7 +481,12 @@ class BaseTracker:
                 scalar_value = BUILTIN_METRICS[name](scalar_value)
 
         group_str = f"/{group:5}" if group is not None else f"{group:6}"
-        self.logger.info(f"{name:15}{group_str}: {scalar_value}")
+        
+        msg = f"{name:15}{group_str}: {scalar_value}"
+        if tag == self.criterion_tag:
+            attrs = ["underline"] if self._es_handler.is_best_epoch(global_step) else []
+            msg = termcolor.colored(msg, "cyan", attrs=attrs)
+        self.logger.info(msg)
 
         return
 

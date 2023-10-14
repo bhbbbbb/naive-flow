@@ -25,7 +25,7 @@ class BaseConfig(BaseSettings):
         ```
         """
 
-        model_config = ConfigDict(frozen=False, validate_assignment=True, extra="forbid")
+        model_config = ConfigDict(frozen=False, validate_assignment=True)
 
         root: T
 

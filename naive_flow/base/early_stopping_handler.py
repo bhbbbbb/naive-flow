@@ -27,6 +27,8 @@ class EarlyStoppingHandler:
         self.counter = 0
         return
 
+    def is_best_epoch(self, epoch: int) -> bool:
+        return self.best_epoch >= 0 and self.best_epoch == epoch
 
     def should_stop(self, epoch: int) -> bool:
 

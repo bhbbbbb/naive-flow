@@ -3,7 +3,7 @@
 *.egg-info
 __pycache__
 
-log*
+log
 runs*
 envs
 *.env

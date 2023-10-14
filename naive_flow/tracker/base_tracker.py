@@ -3,7 +3,7 @@ import re
 import socket
 from datetime import datetime
 from fnmatch import fnmatch
-from typing import Union, Tuple, overload, TypedDict, Type, List, get_type_hints, Literal, Union
+from typing import Union, Tuple, overload, TypedDict, Type, List, get_type_hints, Literal
 from functools import wraps
 import logging
 from argparse import ArgumentParser, Namespace
@@ -576,6 +576,7 @@ def get_latest_time_formatted_dir(log_root_dir: str):
     return latest_dir
 
 def list_checkpoints(log_dir: str):
+    # TODO: filiter using comment
 
     PATTERN = r"_epoch_(\d+)"
 

@@ -1,7 +1,7 @@
 from io import StringIO
+from functools import lru_cache
 
-from typing import TypeVar, Generic
-from pydantic import RootModel, ConfigDict
+from typing import TypeVar
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Writable:
@@ -13,21 +13,6 @@ T = TypeVar("T")
 
 
 class BaseConfig(BaseSettings):
-
-    class MutableField(RootModel[T], Generic[T]):
-        """Only works inside `BaseConfig`
-
-        Example:
-        ```
-        class Config(BaseConfig):
-            immutable_field: int
-            mutable_field: BaseConfig.MutableField[int]
-        ```
-        """
-
-        model_config = ConfigDict(frozen=False, validate_assignment=True)
-
-        root: T
 
     model_config = SettingsConfigDict(
         frozen=True,
@@ -60,7 +45,7 @@ class BaseConfig(BaseSettings):
         indent = max(padding_len + len(longest_field), min_len)
 
         for field, value in field_value_pairs:
-            sio.write(f"{field:{indent}}{value}\n")
+            sio.write(f"{field:{indent}}= {value}\n")
 
 
         sio.write("\n")
@@ -79,17 +64,39 @@ class BaseConfig(BaseSettings):
         print(str(self), file=file, end="")
         return
     
-    def __getattribute__(self, __name: str):
-        tem = super().__getattribute__(__name)
-        if isinstance(tem, BaseConfig.MutableField):
-            return tem.root
-        return tem
-    
-    def __setattr__(self, name: str, value) -> None:
-        tem = super().__getattribute__(name)
-        if isinstance(tem, BaseConfig.MutableField):
-            tem.root = value
-            return
+    @lru_cache(maxsize=1)
+    def __find_config_members(self):
+        config_member_fields = []
+        for field in self.__fields__:
+            if isinstance(getattr(self, field), BaseConfig):
+                config_member_fields.append(field)
+        return config_member_fields
 
-        super().__setattr__(name, value)
-        return
+
+    def __getattribute__(self, __name: str):
+        """Allow get attributes in member configs
+        """
+        
+        try:
+            value = super().__getattribute__(__name)
+        except AttributeError as e:
+            
+            found = False
+            for field in self.__find_config_members():
+                member_config = getattr(self, field)
+                try:
+                    value = getattr(member_config, __name)
+                    found = True
+                except AttributeError:
+                    pass
+
+            if found is False:
+                raise e
+
+        return value
+    
+    # def __setattr__(self, name: str, value) -> None:
+    #     tem = super().__getattribute__(name)
+
+    #     super().__setattr__(name, value)
+    #     return

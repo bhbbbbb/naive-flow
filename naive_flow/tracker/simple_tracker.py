@@ -2,7 +2,7 @@ from typing import List
 
 from torch import nn, optim
 
-from .config import TrackerConfig
+from .tracker_config import TrackerConfig
 from .base_tracker import BaseTracker, MetricsArgT
 
 

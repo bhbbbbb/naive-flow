@@ -3,10 +3,9 @@ import re
 import socket
 from datetime import datetime
 from fnmatch import fnmatch
-from typing import Union, Tuple, overload, TypedDict, Type, List, get_type_hints, Literal
+from typing import Union, Tuple, overload, TypedDict, Type, List, get_type_hints
 from functools import wraps
 import logging
-from argparse import ArgumentParser, Namespace
 
 import termcolor
 import torch
@@ -14,12 +13,13 @@ from torch.utils.tensorboard import SummaryWriter
 
 from pydantic import BaseModel
 
-from .config import TrackerConfig
-from ..base.logger import get_logger
-from ..base.metrics import MetricsLike, BUILTIN_METRICS
-from ..base.early_stopping_handler import EarlyStoppingHandler
+from .tracker_config import TrackerConfig
+from .base.arg_parser import get_args
+from .base.logger import get_logger
+from .base.metrics import MetricsLike, BUILTIN_METRICS
+from .base.early_stopping_handler import EarlyStoppingHandler
 
-__all__ = ["BaseTracker", "load_checkpoint"]
+__all__ = ["BaseTracker", "load_checkpoint", "load_config_dict"]
 
 class SaveReason(BaseModel):
 
@@ -55,7 +55,7 @@ def once_assign_property(attribute: str):
     
     return property(getter, setter)
 
-def load_checkpoint(checkpoint_path: str):
+def _load_checkpoint(checkpoint_path: str):
     """Load the specific checkpoint save by Tracker"""
 
     checkpoint_dict: _CheckpointDict = torch.load(checkpoint_path)
@@ -64,7 +64,18 @@ def load_checkpoint(checkpoint_path: str):
         raise ValueError(
             f"Checkpoint: {checkpoint_name} is not a checkpoint stored by Tracker."
         )
-    return checkpoint_dict["user_data"]
+    return checkpoint_dict["user_data"], checkpoint_dict["config"]
+
+def load_config_dict(checkpoint_path: str) -> dict:
+    """Load the config used in the checkpoint"""
+    _, config_dict = _load_checkpoint(checkpoint_path)
+    return config_dict
+
+def load_checkpoint(checkpoint_path: str):
+    """Load the specific checkpoint save by Tracker"""
+
+    user_data, _ = _load_checkpoint(checkpoint_path)
+    return user_data
 
 # pylint: disable=invalid-name
 MetricsArgT = Union[str, Tuple[str, Union[str, Type[MetricsLike]]]]
@@ -183,6 +194,8 @@ class BaseTracker:
             )
         
         writer.add_scalar = add_scalar_wrapper
+
+        writer.add_text('config', self.config.model_dump_json(), start_epoch)
         return
 
     @overload
@@ -384,7 +397,7 @@ class BaseTracker:
     def range(self, to_epoch: int):
 
         if not self._loaded:
-            args = parse_args()
+            args = get_args()
             if args.command in ["best", "load_best"]:
                 self.load_best_checkpoint(log_dir=args.log_dir, delete_ok=args.delete_ok)
             elif args.command in ["latest", "load_latest"]:
@@ -632,83 +645,3 @@ def prompt_delete_later(checkpoint_name: str, to_delete: List[str]):
 
         if option.lower() == "k":
             return False
-
-class Args(Namespace):
-    command: Literal["load", "best", "load_best", "latest", "load_latest"]
-    checkpoint: Union[str, None]
-    delete_ok: Union[bool, None]
-    log_dir: Union[str, None]
-
-def parse_args() -> Args:
-
-    arg_parser = ArgumentParser(
-        "tracker",
-        description=(
-            "Command line interface to decide whether start a new training or "
-            "load from existing checkpoint"
-        )
-    )
-
-    # arg_parser.add_argument(
-    #     "-e", "--to-epoch",
-    #     type=int,
-    #     help=(
-    #         "Specify to_epoch passed to tracker.range(to_epoch). "
-    #         "Note that this will OVERRIDE the argument written in your code."
-    #     ),
-    # )
-    sub_parsers = arg_parser.add_subparsers(dest="command")
-
-    load_parser = sub_parsers.add_parser(
-        "load",
-        help="Load a specific checkpoint",
-    )
-    load_parser.add_argument(
-        "checkpoint",
-        type=str,
-        help="Path to the checkpoint",
-    )
-    load_parser.add_argument(
-        "--delete-ok",
-        type=bool,
-    )
-
-    load_best_parser = sub_parsers.add_parser(
-        "load_best",
-        aliases=["best"],
-        help="Load the best checkpoint in the latest log_dir",
-    )
-    load_best_parser.add_argument(
-        "--delete-ok",
-        type=bool,
-    )
-    load_best_parser.add_argument(
-        "--log-dir",
-        type=str,
-        help=(
-            "Load the best checkpoint from the given log-dir. If not specified, "
-            "Tracker will detect and use the latest log-dir in the parameter log_root_dir"
-        )
-    )
-
-    load_latest_parser = sub_parsers.add_parser(
-        "load_latest",
-        aliases=["latest"],
-        help=(
-            "Load the latest checkpoint in the given log-dir. "
-            "If log-dir is not specified, load the latest checkpoint in the latest log-dir"
-        ),
-    )
-    load_latest_parser.add_argument(
-        "--delete-ok",
-        type=bool,
-    )
-    load_latest_parser.add_argument(
-        "--log-dir",
-        type=str,
-        help=(
-            "Load the latest checkpoint from the given log-dir. If not specified, "
-            "Tracker will detect and use the latest log-dir in the parameter log_root_dir"
-        )
-    )
-    return arg_parser.parse_args()

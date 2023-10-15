@@ -1,3 +1,5 @@
+__all__ = ["BaseConfig"]
+
 from io import StringIO
 from functools import lru_cache
 

@@ -1,6 +1,6 @@
 from typing import Union
 from pydantic import field_validator, NonNegativeInt
-from ..base.config import BaseConfig
+from ..config import BaseConfig
 
 class TrackerConfig(BaseConfig):
 

@@ -3,7 +3,8 @@ __all__ = ["BaseConfig"]
 from io import StringIO
 from functools import lru_cache
 
-from typing import TypeVar
+from typing import TypeVar, Union
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Writable:
@@ -13,10 +14,17 @@ class Writable:
 
 T = TypeVar("T")
 
+# pylint: disable=invalid-name
+def NaiveFlowField(*default, direct_access: Union[bool, int], **pydantic_kwargs):
+    return Field(*default, direct_access=direct_access, **pydantic_kwargs)
+
+class ConfigConfigDict(SettingsConfigDict):
+    display_field_padding_len: int
+    display_field_min_len: int
 
 class BaseConfig(BaseSettings):
 
-    model_config = SettingsConfigDict(
+    model_config = ConfigConfigDict(
         frozen=True,
         extra="allow",
         validate_assignment=True,
@@ -69,12 +77,21 @@ class BaseConfig(BaseSettings):
         return
     
     @lru_cache(maxsize=1)
-    def __find_config_members(self):
-        config_member_fields = []
-        for field in self.__fields__:
-            if isinstance(getattr(self, field), BaseConfig):
-                config_member_fields.append(field)
-        return config_member_fields
+    def __find_extended_fields(self):
+        extended_fields = []
+        extended_fields_with_priority = []
+        for field, info in self.model_fields.items():
+            field_value = getattr(self, field)
+            if isinstance(field_value, BaseConfig) and info.json_schema_extra:
+                allow = info.json_schema_extra.get("direct_access", False)
+                if allow is True:
+                    extended_fields.append(field)
+                elif isinstance(allow, int):
+                    extended_fields_with_priority.append((field, allow))
+
+        extended_fields_with_priority.sort(key=lambda v: v[-1])
+        extended_fields_with_priority = map(lambda v: v[0], extended_fields_with_priority)
+        return list(extended_fields_with_priority) + extended_fields
 
 
     def __getattribute__(self, __name: str):
@@ -86,7 +103,7 @@ class BaseConfig(BaseSettings):
         except AttributeError as e:
             
             found = False
-            for field in self.__find_config_members():
+            for field in self.__find_extended_fields():
                 member_config = getattr(self, field)
                 try:
                     value = getattr(member_config, __name)

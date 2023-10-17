@@ -1,5 +1,11 @@
 # Change Log
 
+### 0.3.2
+    - Now only member configs set with `Field(direct_access=True)` will get direct access
+        - Set int value to set the priority. `Field(direct_access=<integer>)`
+        - Lower number has higher priority.
+
+
 ### 0.3.1
     - remove mutable field  
     - allow recursive get config value

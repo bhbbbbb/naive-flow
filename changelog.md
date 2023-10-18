@@ -1,5 +1,10 @@
 # Change Log
 
+
+### 0.3.3
+
+    - Add track_config.save_end
+
 ### 0.3.2
     - Now only member configs set with `Field(direct_access=True)` will get direct access
         - Set int value to set the priority. `Field(direct_access=<integer>)`

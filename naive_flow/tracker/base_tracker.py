@@ -195,7 +195,7 @@ class BaseTracker:
         
         writer.add_scalar = add_scalar_wrapper
 
-        writer.add_text('config', self.config.model_dump_json(), start_epoch)
+        writer.add_text("config", self.config.model_dump_json(indent=4), start_epoch)
         return
 
     @overload
@@ -453,7 +453,7 @@ class BaseTracker:
                 save_reason.best = True
 
             if (
-                save_reason.end or
+                save_reason.end and self.config.save_end or
                 save_reason.regular or
                 save_reason.best and self.config.save_n_best
             ):

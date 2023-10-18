@@ -39,6 +39,14 @@ class TrackerConfig(BaseConfig):
     ```
     """
 
+    enable_logging: bool = True
+    """whether log to file "log.log". It"s useful to turn this off when inference on kaggle"""
+
+    early_stopping_rounds: NonNegativeInt = 0
+    """Early stopping threshold. If early_stopping_rounds == 0, then early stopping would
+    not be enable. I.e. model would train until the specified epoch
+    """
+
     epochs_per_checkpoint: NonNegativeInt = 0
     """Num of epochs per checkpoints.
        
@@ -52,14 +60,6 @@ class TrackerConfig(BaseConfig):
                                         poistive integer.
     """
 
-    enable_logging: bool = True
-    """whether log to file "log.log". It"s useful to turn this off when inference on kaggle"""
-
-    early_stopping_rounds: NonNegativeInt = 0
-    """Early stopping threshold. If early_stopping_rounds == 0, then early stopping would
-    not be enable. I.e. model would train until the specified epoch
-    """
-
     save_n_best: NonNegativeInt = 1
     """only save n latest models with best validation scorea.
 
@@ -68,6 +68,14 @@ class TrackerConfig(BaseConfig):
 
     If set to 1, every better model would be saved, and the previously best-saved models would
     get deleted.
+    """
+
+    save_end: bool = True
+    """Whether to save the checkpoint of the last epoch.
+
+    When True, the last epoch will always be saved.
+    When False, The last checkpoint may still be saved if `save_n_best` > 0, and the last checkpoint
+    has the best evaluation score.
     """
 
     comment: Union[str, None] = None

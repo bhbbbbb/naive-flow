@@ -8,5 +8,6 @@ runs*
 envs
 *.env
 
+build
 test.*
 do.py

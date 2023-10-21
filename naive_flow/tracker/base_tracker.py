@@ -446,7 +446,8 @@ class BaseTracker:
             if self._es_handler.should_stop(epoch):
                 self.logger.info("Early stopping!")
                 save_reason.early_stopping = True
-                self._save(epoch, save_reason)
+                if self.config.save_end is True:
+                    self._save(epoch, save_reason)
                 break
 
             if self._es_handler.is_best_epoch(epoch):

@@ -5,6 +5,7 @@ from typing import (
     List,
     Type,
     Protocol,
+    Literal
 )
 
 class MetricsLike(Protocol):
@@ -67,13 +68,13 @@ class Objective(BaseMetrics):
     
     
 
-class PosRatio(BaseMetrics):
+class Ratio(BaseMetrics):
     """Default Postive Ratio Metrics, value in [0, 1], higher is better.
     """
 
-    names: ClassVar[List[str]] = ["pos_ratio", "accuracy", "precision", "recall"]
+    names: ClassVar[List[str]] = ["ratio", "pos_ratio", "accuracy", "precision", "recall"]
 
-    def better_than(self, rhs: PosRatio):
+    def better_than(self, rhs: Ratio):
         return self.value > rhs.value
 
     def __str__(self):
@@ -81,20 +82,22 @@ class PosRatio(BaseMetrics):
 
 
 class NegRatio(BaseMetrics):
-    """Default Postive Ratio Metrics, value in [0, 1], lower is better.
+    """Default Negative Ratio Metrics, value in [0, 1], lower is better.
     """
 
     names: ClassVar[List[str]] = ["neg_ratio"]
 
-    def better_than(self, rhs: PosRatio):
+    def better_than(self, rhs: NegRatio):
         return self.value < rhs.value
 
     def __str__(self):
         return f"{self.value * 100:.4f} %"
 
+
+BUILTIN_TYPES = Literal["loss", "objective", "ratio", "neg_ratio"]
 BUILTIN_METRICS: Dict[str, Type[BaseMetrics]] =\
     {
         name: met 
-        for met in [Loss, Objective, PosRatio, NegRatio]
+        for met in [Loss, Objective, Ratio, NegRatio]
         for name in met.names
     }

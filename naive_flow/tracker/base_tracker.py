@@ -3,7 +3,9 @@ import re
 import socket
 from datetime import datetime
 from fnmatch import fnmatch
-from typing import Union, Tuple, TypedDict, Type, List, get_type_hints, Callable, overload
+from typing import (
+    Union, Tuple, TypedDict, Type, List, get_type_hints, Callable, overload, NamedTuple
+)
 from functools import wraps
 
 import torch
@@ -15,7 +17,7 @@ import termcolor
 from .tracker_config import TrackerConfig
 from .checkpoint.utils import list_checkpoints_later_than
 from .base.logger import get_logger
-from .base.metrics import MetricsLike, BUILTIN_METRICS
+from .base.metrics import MetricsLike, BUILTIN_METRICS, BUILTIN_TYPES
 from .base.early_stopping_handler import EarlyStoppingHandler
 
 __all__ = ["BaseTracker", "load_checkpoint", "load_config_dict"]
@@ -33,6 +35,30 @@ class _CheckpointDict(TypedDict):
     user_data: dict
     config: dict
     epoch: int
+
+class _Scalar(NamedTuple):
+    
+    tag: str
+    metrics: MetricsLike
+
+    @classmethod
+    def from_arg(cls, tag: str, scalar_type: Union[BUILTIN_TYPES, MetricsLike]):
+        # ('a_loss/valid', 'loss')
+        # ('b_loss/valid', 'loss')
+        # ('a_metrics/valid', Metrics)
+        # ('b_metrics/valid', Metrics)
+
+        if isinstance(scalar_type, str):
+
+            if BUILTIN_METRICS.get(scalar_type) is None:
+                raise KeyError(
+                    f"'{scalar_type}' is not a bulitin metrics. \n"
+                    f"Currently available metrics are: {list(BUILTIN_METRICS.keys())}"
+                )
+
+            scalar_type = BUILTIN_METRICS.get(scalar_type)
+        
+        return cls(tag, scalar_type)
 
 
 def _load_checkpoint(checkpoint_path: str):
@@ -119,8 +145,8 @@ class BaseTracker:
 
         self.config = config
 
-        self._metrics = None
-        self._criterion_tag, self._criterion_type = (None, None)
+        self._es_scalar = None
+        self._scalars = []
 
         if from_checkpoint is None:
             self.log_dir, self.logger, self.start_epoch = BaseTracker._start_new_training(config)
@@ -130,7 +156,6 @@ class BaseTracker:
             self.log_dir, self.logger, self.start_epoch =\
                     BaseTracker._load_checkpoint(checkpoint_path, config, user_load_hook=self.load)
         
-        self._writer = None
         self._evaluated = False
         return
     
@@ -242,84 +267,13 @@ class BaseTracker:
 
         return (log_dir, logger, start_epoch)
 
-    
-    @property
-    def writer(self):
-        if self._writer is None:
-            self._writer = self.get_summary_writer()
-        return self._writer
-
-    def get_summary_writer(
-        self,
-        criterion: MetricsArgT = None,
-        metrics: Union[MetricsArgT, List[MetricsArgT]] = None,
-        max_queue: int = 10,
-        flush_secs: int = 120,
-        filename_suffix: str = ""
-    ):
-        """_summary_
-
-        Args:
-            criterion (MetricsArgT, optional): criterion use for early stopping. Can be omitted
-                if early stopping is not enable
-            metrics (Union[MetricsArgT, List[MetricsArgT]], optional): Specify types of metrics of 
-                used scalars.
-                When an unknown type of scalar added through summary writer, it will be printed
-                    as a normal float number. Specify the type of that scalar can help it printed
-                    in the format described by the metrics.
-            
-        Rest Args:
-            See SummaryWriter.__init__ for more details 
-        """
-
-        def parse_metrics_arg(arg: MetricsArgT):
-            # 'loss/valid'
-            # ('a_loss/valid', 'loss')
-            # ('b_loss/valid', 'loss')
-            # ('a_metrics/valid', Metrics)
-            # ('b_metrics/valid', Metrics)
-
-            if isinstance(arg, str):
-                arg = (arg, os.path.dirname(arg))
-
-            criterion_tag, criterion_type = arg
-            
-            if isinstance(criterion_type, str):
-
-                if BUILTIN_METRICS.get(criterion_type) is None:
-                    raise KeyError(
-                        f"'{criterion_type}' is not a bulitin metrics. \n"
-                        f"Currently available metrics are: {list(BUILTIN_METRICS.keys())}"
-                    )
-
-                criterion_type = BUILTIN_METRICS.get(criterion_type)
-            
-            return criterion_tag, criterion_type
-
-        if self.config.early_stopping_rounds > 0:
-            assert criterion is not None, (
-                "The early stopping is enable while criterion is not provided."
-            )
+    def _register_add_scalar_hook(self, writer: SummaryWriter):
         
-        metrics = metrics or []
-        if len(metrics) == 2 and isinstance(metrics[0], str):
-            metrics = [metrics]
-        self._metrics = dict(map(parse_metrics_arg, metrics))
-        self._criterion_tag, self._criterion_type = parse_metrics_arg(criterion)\
-                                                        if criterion is not None else (None, None)
+        if getattr(writer.add_scalar, "__wrapper__", None) is self:
+            # has been wrapped
+            return writer
 
-        assert self._writer is None, (
-            "the summary writer has been created, use tracker.writer instead"
-        )
-
-        self._writer = SummaryWriter(self.log_dir,
-                                    purge_step=self.start_epoch,
-                                    max_queue=max_queue,
-                                    flush_secs=flush_secs,
-                                    filename_suffix=filename_suffix)
-
-        original_fn = self._writer.add_scalar
-
+        original_fn = writer.add_scalar
         @wraps(original_fn)
         def add_scalar_wrapper(
             tag,
@@ -339,10 +293,28 @@ class BaseTracker:
                 double_precision,
             )
         
-        self._writer.add_scalar = add_scalar_wrapper
-        return self._writer
+        add_scalar_wrapper.__wrapper__ = self
+        writer.add_scalar = add_scalar_wrapper
+        return writer
 
+    def register_scalar(
+        self,
+        writer: SummaryWriter,
+        tag: str,
+        scalar_type: Union[BUILTIN_TYPES, MetricsLike],
+        for_early_stopping: bool = False,
+    ):
 
+        writer = self._register_add_scalar_hook(writer)
+        if for_early_stopping:
+            assert self._es_scalar is None, (
+                "try to register a second scalar for early stopping, which is not allowed."
+            )
+            self._es_scalar = _Scalar.from_arg(tag, scalar_type)
+
+        else:
+            self._scalars.append(_Scalar.from_arg(tag, scalar_type))
+        return
 
 
     def range(self, to_epoch: int):
@@ -418,30 +390,32 @@ class BaseTracker:
         group = os.path.basename(tag)
         if group == tag:
             group = None
-        if tag == self._criterion_tag:
+        if self._es_scalar is not None and tag == self._es_scalar.tag:
             if self._evaluated is True:
                 raise RuntimeError("More than one evaluation scaler were added during an epoch.")
 
-            scalar_value = self._criterion_type(scalar_value)
+            scalar_value = self._es_scalar.metrics(scalar_value)
             self._es_handler.update(name, scalar_value, global_step)
             self._evaluated = True
 
         else:
-            for pattern, met in self._metrics.items():
+            found = False
+            for pattern, met in self._scalars:
                 if fnmatch(tag, pattern):
                     scalar_value = met(scalar_value)
+                    found = True
+                    break
 
-            if name in BUILTIN_METRICS:
+            if not found and name in BUILTIN_METRICS:
                 scalar_value = BUILTIN_METRICS[name](scalar_value)
 
         group_str = f"/{group:5}" if group is not None else f"{group:6}"
         
         msg = f"{name:15}{group_str}: {scalar_value}"
-        if tag == self._criterion_tag:
+        if tag == self._es_scalar.tag:
             attrs = ["underline"] if self._es_handler.is_best_epoch(global_step) else []
             msg = termcolor.colored(msg, "cyan", attrs=attrs)
         self.logger.info(msg)
-
         return
 
 

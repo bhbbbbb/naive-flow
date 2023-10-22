@@ -5,9 +5,8 @@ from argparse import ArgumentParser, Namespace
 class Args(Namespace):
     command: Literal["load", "best", "load_best", "latest", "load_latest"]
     checkpoint: Union[str, None]
-    delete_ok: Union[bool, None]
+    # delete_ok: Union[bool, None]
     log_dir: Union[str, None]
-    pass
 
 @lru_cache(maxsize=1)
 def get_default_arg_parser() -> ArgumentParser:
@@ -39,20 +38,20 @@ def get_default_arg_parser() -> ArgumentParser:
         type=str,
         help="Path to the checkpoint",
     )
-    load_parser.add_argument(
-        "--delete-ok",
-        type=bool,
-    )
+    # load_parser.add_argument(
+    #     "--delete-ok",
+    #     type=bool,
+    # )
 
     load_best_parser = sub_parsers.add_parser(
         "load_best",
         aliases=["best"],
         help="Load the best checkpoint in the latest log_dir",
     )
-    load_best_parser.add_argument(
-        "--delete-ok",
-        type=bool,
-    )
+    # load_best_parser.add_argument(
+    #     "--delete-ok",
+    #     type=bool,
+    # )
     load_best_parser.add_argument(
         "--log-dir",
         type=str,
@@ -70,10 +69,10 @@ def get_default_arg_parser() -> ArgumentParser:
             "If log-dir is not specified, load the latest checkpoint in the latest log-dir"
         ),
     )
-    load_latest_parser.add_argument(
-        "--delete-ok",
-        type=bool,
-    )
+    # load_latest_parser.add_argument(
+    #     "--delete-ok",
+    #     type=bool,
+    # )
     load_latest_parser.add_argument(
         "--log-dir",
         type=str,

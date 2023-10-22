@@ -1,8 +1,13 @@
 from typing import Union
 from pydantic import field_validator, NonNegativeInt
-from ..config import BaseConfig
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-class TrackerConfig(BaseConfig):
+class TrackerConfig(BaseSettings):
+
+    model_config = SettingsConfigDict(
+        frozen=True,
+        validate_assignment=True,
+    )
 
     log_root_dir: str = "runs"
     """
@@ -77,6 +82,8 @@ class TrackerConfig(BaseConfig):
     When False, The last checkpoint may still be saved if `save_n_best` > 0, and the last checkpoint
     has the best evaluation score.
     """
+
+    delete_ok: Union[bool, None] = None
 
     comment: Union[str, None] = None
     """Same as the argument of SummaryWriter"""

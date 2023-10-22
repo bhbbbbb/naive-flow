@@ -1,5 +1,17 @@
 # Change Log
 
+### 0.3.4
+
+    - Change the way to initialize tracker
+        - Before v0.3.4, tracker won't be fully initialized, and will wait until one of the following function begin called.
+            - load_checkpoint  
+            - load_best
+            - load_latest
+            - range
+        - Now the tracker is always fully initalized, use the argument `from_checkpoint` to decide how to load the checkpoint
+    - Deprecate BaseConfig
+    - Seperate checkpoint from BaseTracker
+
 
 ### 0.3.3
 

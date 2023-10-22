@@ -1,9 +1,9 @@
-from typing import List
+from typing import Union, Callable, overload
 
 from torch import nn, optim
 
 from .tracker_config import TrackerConfig
-from .base_tracker import BaseTracker, MetricsArgT
+from .base_tracker import BaseTracker
 
 
 
@@ -13,13 +13,37 @@ class SimpleTracker(BaseTracker):
     optimizer: optim.Optimizer
     scheduler: optim.lr_scheduler._LRScheduler
 
+    @overload
+    def __init__(
+        self,
+        model,
+        optimizer,
+        scheduler = None,
+        config: TrackerConfig = None,
+        from_checkpoint: Union[str, Callable] = None,
+    ):...
+
+    @overload
+    def __init__(
+        self,
+        model,
+        optimizer,
+        scheduler = None,
+        log_root_dir: str = None,
+        epochs_per_checkpoint: int = None,
+        early_stopping_rounds: int = None,
+        save_n_best: int = None,
+        comment: str = None,
+        enable_logging: bool = True,
+        from_checkpoint: Union[str, Callable] = None,
+    ):...
+
     # pylint: disable=too-many-arguments
     def __init__(
         self,
         model,
         optimizer,
         scheduler = None,
-        criterion: MetricsArgT = None,
         log_root_dir: str = None,
         epochs_per_checkpoint: int = None,
         early_stopping_rounds: int = None,
@@ -27,7 +51,7 @@ class SimpleTracker(BaseTracker):
         comment: str = None,
         enable_logging: bool = True,
         config: TrackerConfig = None,
-        metrics: List[MetricsArgT] = None,
+        from_checkpoint: Union[str, Callable] = None,
     ):
 
         self.model = model
@@ -35,7 +59,6 @@ class SimpleTracker(BaseTracker):
         self.scheduler = scheduler
 
         super().__init__(
-            criterion=criterion,
             log_root_dir=log_root_dir,
             epochs_per_checkpoint=epochs_per_checkpoint,
             early_stopping_rounds=early_stopping_rounds,
@@ -43,7 +66,7 @@ class SimpleTracker(BaseTracker):
             comment=comment,
             enable_logging=enable_logging,
             config=config,
-            metrics=metrics,
+            from_checkpoint=from_checkpoint,
         )
         return
     

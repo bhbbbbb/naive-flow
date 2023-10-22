@@ -4,6 +4,7 @@ from io import StringIO
 from functools import lru_cache
 
 from typing import TypeVar, Union
+from typing_extensions import deprecated
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -15,6 +16,7 @@ class Writable:
 T = TypeVar("T")
 
 # pylint: disable=invalid-name
+@deprecated("No reason to use this")
 def NaiveFlowField(*default, direct_access: Union[bool, int], **pydantic_kwargs):
     return Field(*default, direct_access=direct_access, **pydantic_kwargs)
 
@@ -22,6 +24,7 @@ class ConfigConfigDict(SettingsConfigDict):
     display_field_padding_len: int
     display_field_min_len: int
 
+@deprecated("Use BaseSettings Directly")
 class BaseConfig(BaseSettings):
 
     model_config = ConfigConfigDict(

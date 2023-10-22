@@ -11,6 +11,7 @@
         - Now the tracker is always fully initalized, use the argument `from_checkpoint` to decide how to load the checkpoint
     - Deprecate BaseConfig
     - Seperate checkpoint from BaseTracker
+    - Seperate summary_writer from BaseTracker
 
 
 ### 0.3.3

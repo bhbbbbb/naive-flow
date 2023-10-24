@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 def strfconfig(config: BaseSettings, padding_len: int = 4, min_len: int = 16):
     
     sio = StringIO()
-    sio.write("Configurations:\n")
+    # sio.write("Configurations:\n")
 
     def walk_config(prefix: str, config: BaseSettings):
 

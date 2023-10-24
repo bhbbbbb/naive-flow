@@ -195,7 +195,6 @@ class BaseTracker:
         checkpoint_path: str,
         config: TrackerConfig,
         user_load_hook: Callable,
-        # delete_ok: bool = None,
     ):
         """Load the specfiic checkpoint
 
@@ -314,7 +313,7 @@ class BaseTracker:
 
         else:
             self._scalars.append(_Scalar.from_arg(tag, scalar_type))
-        return
+        return writer
 
 
     def range(self, to_epoch: int):

@@ -1,5 +1,6 @@
 import os
 import re
+import logging
 import socket
 from datetime import datetime
 from fnmatch import fnmatch
@@ -16,9 +17,11 @@ import termcolor
 
 from .tracker_config import TrackerConfig
 from .checkpoint.utils import list_checkpoints_later_than
-from .base.logger import get_logger
+from .base.logger import set_handlers
 from .base.metrics import MetricsLike, BUILTIN_METRICS, BUILTIN_TYPES
 from .base.early_stopping_handler import EarlyStoppingHandler
+from ..log import LoggingLevel
+from .. import strfconfig
 
 __all__ = ["BaseTracker", "load_checkpoint", "load_config_dict"]
 
@@ -149,13 +152,14 @@ class BaseTracker:
         self._scalars = []
 
         if from_checkpoint is None:
-            self.log_dir, self.logger, self.start_epoch = BaseTracker._start_new_training(config)
+            self.log_dir, self.start_epoch = BaseTracker._start_new_training(config)
         else:
             checkpoint_path = from_checkpoint if isinstance(from_checkpoint, str)\
                                                         else from_checkpoint(config.log_root_dir)
-            self.log_dir, self.logger, self.start_epoch =\
+            self.log_dir, self.start_epoch =\
                     BaseTracker._load_checkpoint(checkpoint_path, config, user_load_hook=self.load)
         
+        self.logger = logging.getLogger(__name__)
         self._evaluated = False
         return
     
@@ -180,14 +184,10 @@ class BaseTracker:
     def _start_new_training(config: TrackerConfig):
         log_dir = BaseTracker._new_log_dir(config.comment, config.log_root_dir)
 
-        logger = (
-            get_logger(__name__, log_dir)
-                if config.enable_logging else get_logger(__name__)
-        )
-        # log information
-        logger.debug(config)
+        set_handlers(log_dir if config.enable_logging else None)
+        logging.getLogger(__name__).debug(strfconfig(config))
         start_epoch = 0
-        return (log_dir, logger, start_epoch)
+        return (log_dir, start_epoch)
 
 
     @staticmethod
@@ -256,15 +256,15 @@ class BaseTracker:
             # use the existing log_dir
             log_dir = checkpoint_log_dir
 
-        logger = (
-            get_logger(__name__, log_dir)
-                if config.enable_logging else get_logger(__name__)
+        set_handlers(log_dir if config.enable_logging else None)
+        logger = logging.getLogger(__name__)
+        logger.log(
+            LoggingLevel.ON_CHECKPOINT_LOAD,
+            f"Checkpoint {os.path.basename(checkpoint_path)} was loaded."
         )
-        # log information
-        logger.info(f"Checkpoint {os.path.basename(checkpoint_path)} was loaded.")
-        logger.debug(config)
+        logger.debug(strfconfig(config))
 
-        return (log_dir, logger, start_epoch)
+        return (log_dir, start_epoch)
 
     def _register_add_scalar_hook(self, writer: SummaryWriter):
         
@@ -325,13 +325,15 @@ class BaseTracker:
         # pylint: disable=attribute-defined-outside-init
         self._es_handler = EarlyStoppingHandler(
             self.config.early_stopping_rounds,
-            self.logger,
         )
 
         for epoch in range(self.start_epoch, to_epoch):
 
             self._evaluated = False
-            self.logger.info(f"Epoch {epoch + 1} / {to_epoch}:")
+            self.logger.log(
+                LoggingLevel.TRAINING_PROGRESS,
+                f"Epoch {epoch} / {to_epoch}:"
+            )
 
             yield epoch
 
@@ -355,7 +357,7 @@ class BaseTracker:
                 save_reason.regular = self.config.epochs_per_checkpoint
 
             if self._es_handler.should_stop(epoch):
-                self.logger.info("Early stopping!")
+                self.logger.log(LoggingLevel.TRAINING_PROGRESS, "Early stopping!")
                 save_reason.early_stopping = True
                 if self.config.save_end is True:
                     self._save(epoch, save_reason)
@@ -372,7 +374,10 @@ class BaseTracker:
                 self._save(epoch, save_reason)
 
 
-        self.logger.info(f"Training is finish for epochs: {to_epoch}")
+        self.logger.log(
+            LoggingLevel.TRAINING_PROGRESS,
+            f"Training is finish for epochs: {to_epoch}"
+        )
         
         self.start_epoch = to_epoch
         return
@@ -414,7 +419,7 @@ class BaseTracker:
         if tag == self._es_scalar.tag:
             attrs = ["underline"] if self._es_handler.is_best_epoch(global_step) else []
             msg = termcolor.colored(msg, "cyan", attrs=attrs)
-        self.logger.info(msg)
+        self.logger.log(LoggingLevel.ON_SCALAR_ADD, msg)
         return
 
 
@@ -437,11 +442,14 @@ class BaseTracker:
         )
         now = formatted_now()
         
-        name = f"{now}_epoch_{cur_epoch + 1}{save_reason_suffix(save_reason)}"
+        name = f"{now}_epoch_{cur_epoch}{save_reason_suffix(save_reason)}"
 
         path = os.path.join(self.log_dir, name)
         torch.save(checkpoint_dict, path)
-        self.logger.info(f"Checkpoint: {name} was saved.")
+        self.logger.log(
+            LoggingLevel.ON_CHECKPOINT_SAVE,
+            f"Checkpoint: {name} was saved."
+        )
 
         if self.config.save_n_best:
             # purge redundant checkpoints
@@ -455,7 +463,8 @@ class BaseTracker:
 
             for _epoch, filename in not_n_best:
                 os.remove(os.path.join(self.log_dir, filename))
-                self.logger.info(
+                self.logger.log(
+                    LoggingLevel.ON_CHECKPOINT_PURGE,
                     f"Checkpoint: {filename} was purged "
                     f"due to save_n_best={self.config.save_n_best}."
                 )

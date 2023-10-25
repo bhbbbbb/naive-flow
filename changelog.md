@@ -1,5 +1,16 @@
 # Change Log
 
+### 0.3.5
+
+    - Now the earlystopping handler will add best metrics as hparams to summary
+    - Now the message printed to terminal can be turned off
+        - E.g.
+            1. turn off scalar
+                - nf.set_stream_logging_level(nf.LoggingLevel.ON_SCALAR_ADD + 1)
+            2. turn off all message
+                - nf.set_stream_logging_level(nf.LoggingLevel.NO_STREAM_LOGGING)
+
+
 ### 0.3.4
 
     - Change the way to initialize tracker

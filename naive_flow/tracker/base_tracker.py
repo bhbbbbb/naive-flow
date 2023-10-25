@@ -115,6 +115,7 @@ class BaseTracker:
         epochs_per_checkpoint: int = None,
         early_stopping_rounds: int = None,
         save_n_best: int = None,
+        save_end: bool = None,
         comment: str = None,
         enable_logging: bool = True,
         from_checkpoint: Union[str, Callable] = None,
@@ -126,6 +127,7 @@ class BaseTracker:
         epochs_per_checkpoint: int = None,
         early_stopping_rounds: int = None,
         save_n_best: int = None,
+        save_end: bool = None,
         comment: str = None,
         enable_logging: bool = True,
         config: TrackerConfig = None,
@@ -142,6 +144,7 @@ class BaseTracker:
                 epochs_per_checkpoint=default_arg(epochs_per_checkpoint, 0),
                 early_stopping_rounds=default_arg(early_stopping_rounds, 0),
                 save_n_best=default_arg(save_n_best, 1),
+                save_end=default_arg(save_end, True),
                 enable_logging=enable_logging,
                 comment=comment,
             )
@@ -149,6 +152,7 @@ class BaseTracker:
         self.config = config
 
         self._es_scalar = None
+        self._writer = None
         self._scalars = []
 
         if from_checkpoint is None:
@@ -272,6 +276,7 @@ class BaseTracker:
             # has been wrapped
             return writer
 
+        self._writer = writer
         original_fn = writer.add_scalar
         @wraps(original_fn)
         def add_scalar_wrapper(
@@ -365,6 +370,13 @@ class BaseTracker:
 
             if self._es_handler.is_best_epoch(epoch):
                 save_reason.best = True
+                if self._writer is not None:
+                    scalars = self._es_handler.get_cache_scalars(epoch)
+                    self._writer.add_hparams(
+                        {"best": "best"},
+                        dict((f"best/{name}", v) for name, v in scalars.items()),
+                        run_name=".",
+                    )
 
             if (
                 save_reason.end and self.config.save_end or
@@ -390,6 +402,7 @@ class BaseTracker:
         global_step=None,
     ):
 
+        self._es_handler.cache_scalar(tag, scalar_value, global_step)
         name = os.path.dirname(tag)
         group = os.path.basename(tag)
         if group == tag:

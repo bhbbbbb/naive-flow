@@ -14,6 +14,7 @@ class EarlyStoppingHandler:
         self.best_name = None
         self.early_stopping_rounds = early_stopping_rounds
         self.logger = logging.getLogger(__name__)
+        self.scalar_cache = [{"epoch": None}, {"epoch": None}]
         return
     
     def update(self, name: str, new_criterion: MetricsLike, epoch: int):
@@ -27,6 +28,17 @@ class EarlyStoppingHandler:
         self.best_name = name
         self.counter = 0
         return
+    
+    def cache_scalar(self, tag: str, scalar, epoch: int):
+        if self.scalar_cache[epoch & 1].get("epoch", None) != epoch:
+            self.scalar_cache[epoch & 1] = {"epoch": epoch}
+
+        self.scalar_cache[epoch & 1][tag] = scalar
+        return
+
+    def get_cache_scalars(self, epoch: int):
+        # del self.scalar_cache[epoch & 1]["epoch"]
+        return self.scalar_cache[epoch & 1]
 
     def is_best_epoch(self, epoch: int) -> bool:
         return self.best_epoch >= 0 and self.best_epoch == epoch

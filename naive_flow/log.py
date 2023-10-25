@@ -3,6 +3,7 @@ import logging
 
 class LoggingLevel(IntEnum):
 
+    NO_STREAM_LOGGING: int = logging.WARNING
     ON_CHECKPOINT_LOAD: int = logging.INFO + 5
     ON_CHECKPOINT_PURGE: int = logging.INFO + 3
     ON_CHECKPOINT_SAVE: int = logging.INFO + 3

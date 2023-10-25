@@ -37,7 +37,6 @@ class EarlyStoppingHandler:
         return
 
     def get_cache_scalars(self, epoch: int):
-        # del self.scalar_cache[epoch & 1]["epoch"]
         return self.scalar_cache[epoch & 1]
 
     def is_best_epoch(self, epoch: int) -> bool:

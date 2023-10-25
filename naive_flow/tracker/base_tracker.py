@@ -5,7 +5,7 @@ import socket
 from datetime import datetime
 from fnmatch import fnmatch
 from typing import (
-    Union, Tuple, TypedDict, Type, List, get_type_hints, Callable, overload, NamedTuple
+    Union, Tuple, TypedDict, Type, List, get_type_hints, Callable, overload, NamedTuple, Dict, Any
 )
 from functools import wraps
 
@@ -151,9 +151,11 @@ class BaseTracker:
 
         self.config = config
 
-        self._es_scalar = None
+        self._es_metrics = None
+        self._metrics = []
         self._writer = None
-        self._scalars = []
+        self._best_scalars: Dict[str, Any] = None
+
 
         if from_checkpoint is None:
             self.log_dir, self.start_epoch = BaseTracker._start_new_training(config)
@@ -311,13 +313,13 @@ class BaseTracker:
 
         writer = self._register_add_scalar_hook(writer)
         if for_early_stopping:
-            assert self._es_scalar is None, (
+            assert self._es_metrics is None, (
                 "try to register a second scalar for early stopping, which is not allowed."
             )
-            self._es_scalar = _Scalar.from_arg(tag, scalar_type)
+            self._es_metrics = _Scalar.from_arg(tag, scalar_type)
 
         else:
-            self._scalars.append(_Scalar.from_arg(tag, scalar_type))
+            self._metrics.append(_Scalar.from_arg(tag, scalar_type))
         return writer
 
 
@@ -334,6 +336,7 @@ class BaseTracker:
 
         for epoch in range(self.start_epoch, to_epoch):
 
+            self._cur_epoch = epoch
             self._evaluated = False
             self.logger.log(
                 LoggingLevel.TRAINING_PROGRESS,
@@ -370,13 +373,8 @@ class BaseTracker:
 
             if self._es_handler.is_best_epoch(epoch):
                 save_reason.best = True
-                if self._writer is not None:
-                    scalars = self._es_handler.get_cache_scalars(epoch)
-                    self._writer.add_hparams(
-                        {"best": "best"},
-                        dict((f"best/{name}", v) for name, v in scalars.items()),
-                        run_name=".",
-                    )
+                if self._es_metrics is not None:
+                    self.get_best_scalars(True)
 
             if (
                 save_reason.end and self.config.save_end or
@@ -391,9 +389,39 @@ class BaseTracker:
             f"Training is finish for epochs: {to_epoch}"
         )
         
-        self.start_epoch = to_epoch
+        self.start_epoch = self._cur_epoch + 1
         return
-            
+    
+    def get_best_scalars(self, no_within_loop_warning: bool = False):
+        assert self._es_metrics is not None , (
+            "You have to have registered summarywriter in tracker using "
+            "register_scalar(..., for_early_stopping=True) so that tracker can know what are the "
+            "best metrics for an epoch"
+        )
+
+        if self.start_epoch < self._cur_epoch + 1:
+            # called within training loop
+            if not self._evaluated:
+                # called before  for-earlystopping scalar added
+                return self._best_scalars
+
+            if no_within_loop_warning is False:
+                self.logger.warning(
+                    "get_best_scalars called within loop. If this epoch is evaluated as the best"
+                    ", and some of the scalar have not been added, they will not be included.\n"
+                    "You can make sure the get_best_scalars is called after all of the scalars for "
+                    "this epoched added, and pass no_within_loop_warning=True to suppress this "
+                    "warning."
+                )
+            # update best_scalar
+            if self._es_handler.is_best_epoch(self._cur_epoch):
+                scalars = self._es_handler.get_cache_scalars(self._cur_epoch)
+                self._best_scalars = scalars
+            return self._best_scalars
+
+        assert self.start_epoch == self._cur_epoch + 1
+        # call after training loop
+        return self._best_scalars
 
     def _add_scalar_hook(
         self,
@@ -407,17 +435,17 @@ class BaseTracker:
         group = os.path.basename(tag)
         if group == tag:
             group = None
-        if self._es_scalar is not None and tag == self._es_scalar.tag:
+        if self._es_metrics is not None and tag == self._es_metrics.tag:
             if self._evaluated is True:
                 raise RuntimeError("More than one evaluation scaler were added during an epoch.")
 
-            scalar_value = self._es_scalar.metrics(scalar_value)
+            scalar_value = self._es_metrics.metrics(scalar_value)
             self._es_handler.update(name, scalar_value, global_step)
             self._evaluated = True
 
         else:
             found = False
-            for pattern, met in self._scalars:
+            for pattern, met in self._metrics:
                 if fnmatch(tag, pattern):
                     scalar_value = met(scalar_value)
                     found = True
@@ -429,7 +457,7 @@ class BaseTracker:
         group_str = f"/{group:5}" if group is not None else f"{group:6}"
         
         msg = f"{name:15}{group_str}: {scalar_value}"
-        if tag == self._es_scalar.tag:
+        if tag == self._es_metrics.tag:
             attrs = ["underline"] if self._es_handler.is_best_epoch(global_step) else []
             msg = termcolor.colored(msg, "cyan", attrs=attrs)
         self.logger.log(LoggingLevel.ON_SCALAR_ADD, msg)

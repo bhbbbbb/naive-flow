@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="naive-flow",
-    version="0.3.5",
+    version="0.3.6",
     packages=find_packages(),
     license="MIT",
     description="Naive Flow, lightweight and obstructive higher level framework based on Pytorch",

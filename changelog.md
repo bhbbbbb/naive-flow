@@ -1,5 +1,10 @@
 # Change Log
 
+### 0.3.6
+    - The behavior introduced in 0.3.5 that earlystopping handler will add best metrics as hparams to summary is removed.
+        - Instead, use tracker.get_best_scalars() to get the best metrics and add to summary writer explicitly manually.
+
+
 ### 0.3.5
 
     - Now the earlystopping handler will add best metrics as hparams to summary

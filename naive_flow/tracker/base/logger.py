@@ -13,6 +13,13 @@ FORMAT = (
 #     "%(message)s" "\n"
 # )
 
+def del_file_handler(log_file_root: str):
+    name = __name__.rsplit(".", 3)[0]
+    logger = logging.getLogger(name)
+    for handler in logger.handlers:
+        if handler.get_name() == log_file_root:
+            logger.removeHandler(handler)
+
 def set_handlers(log_file_root: str = None):
     """
     Args:
@@ -29,6 +36,10 @@ def set_handlers(log_file_root: str = None):
         file_handler = logging.FileHandler(log_file_path, "a", encoding="utf-8")
         file_handler.setFormatter(logging.Formatter(fmt=FORMAT))
         file_handler.setLevel(logging.DEBUG)
+        file_handler.set_name(log_file_root)
+        for handler in logger.handlers:
+            if isinstance(handler, logging.FileHandler):
+                logger.removeHandler(handler)
         logger.addHandler(file_handler)
     
     # stream_handler = logging.StreamHandler()

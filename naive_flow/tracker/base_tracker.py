@@ -17,7 +17,7 @@ import termcolor
 
 from .tracker_config import TrackerConfig
 from .checkpoint.utils import list_checkpoints_later_than
-from .base.logger import set_handlers
+from .base.logger import set_handlers, del_file_handler
 from .base.metrics import MetricsLike, BUILTIN_METRICS, BUILTIN_TYPES
 from .base.early_stopping_handler import EarlyStoppingHandler
 from ..log import LoggingLevel
@@ -511,6 +511,10 @@ class BaseTracker:
                 )
                 
         return name
+    
+    def __del__(self):
+        del_file_handler(self.log_dir)
+        return
 
     def load(self, checkpoint_dict: dict):
         raise NotImplementedError

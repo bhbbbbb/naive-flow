@@ -1,11 +1,19 @@
+from typing import Literal
 import json
 from io import StringIO
 from pydantic_settings import BaseSettings
 
-def strfconfig(config: BaseSettings, padding_len: int = 4, min_len: int = 16):
+def strfconfig(
+    config: BaseSettings,
+    strformat: Literal["env", "markdown"] = "env",
+    padding_len: int = 4,
+    min_len: int = 16
+):
     
     sio = StringIO()
-    # sio.write("Configurations:\n")
+    print(config.__class__.__name__, file=sio)
+    if strformat == "markdown":
+        print("```env", file=sio)
 
     def walk_config(prefix: str, config: BaseSettings):
 
@@ -30,7 +38,11 @@ def strfconfig(config: BaseSettings, padding_len: int = 4, min_len: int = 16):
         sio.write(f"{field:{indent}}= {value}\n")
 
 
-    sio.write("\n")
+    if strformat == "markdown":
+        print("```", file=sio)
+    else:
+        sio.write("\n")
+
     string = sio.getvalue()
     sio.close()
     return string

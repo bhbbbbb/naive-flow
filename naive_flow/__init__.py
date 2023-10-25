@@ -9,6 +9,7 @@ if not (logger := logging.getLogger(__name__)).hasHandlers():
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(logging.INFO)
     logger.addHandler(stream_handler)
+    logger.propagate = False
 
 def set_stream_logging_level(level: int):
     stream_handler.setLevel(level)

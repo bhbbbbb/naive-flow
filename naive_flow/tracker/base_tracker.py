@@ -63,6 +63,29 @@ class _Scalar(NamedTuple):
         
         return cls(tag, scalar_type)
 
+class _ScalarCache:
+    def __init__(self):
+        self.scalar_cache = [{"epoch": None}, {"epoch": None}]
+        return
+
+    def cache_scalar(self, tag: str, scalar, epoch: int):
+        if self.scalar_cache[epoch & 1].get("epoch", None) != epoch:
+            self.scalar_cache[epoch & 1] = {"epoch": epoch}
+
+        self.scalar_cache[epoch & 1][tag] = scalar
+        return
+    
+    def has_cache(self, tag: str, epoch: int):
+        scalars = self.scalar_cache[epoch & 1]
+        if scalars["epoch"] != epoch:
+            return False
+        return scalars.get(tag, False)
+
+    def get_cache_scalars(self, epoch: int):
+        scalars = self.scalar_cache[epoch & 1]
+        assert scalars["epoch"] == epoch
+        return scalars
+
 
 def _load_checkpoint(checkpoint_path: str):
     """Load the specific checkpoint save by Tracker"""
@@ -155,7 +178,7 @@ class BaseTracker:
         self._metrics = []
         self._writer = None
         self._best_scalars: Dict[str, Any] = None
-
+        self._scalar_cache = _ScalarCache()
 
         if from_checkpoint is None:
             self.log_dir, self.start_epoch = BaseTracker._start_new_training(config)
@@ -168,6 +191,7 @@ class BaseTracker:
         self.logger = logging.getLogger(__name__)
         self._evaluated = False
         return
+
     
     @staticmethod
     def _new_log_dir(
@@ -289,8 +313,7 @@ class BaseTracker:
             new_style=False,
             double_precision=False,
         ):
-            self._add_scalar_hook(tag, scalar_value, global_step)
-            return original_fn(
+            original_fn(
                 tag,
                 scalar_value,
                 global_step,
@@ -298,20 +321,52 @@ class BaseTracker:
                 new_style,
                 double_precision,
             )
+            return self._add_scalar_hook(tag, scalar_value, global_step)
         
         add_scalar_wrapper.__wrapper__ = self
         writer.add_scalar = add_scalar_wrapper
         return writer
 
+    def create_summary_writer(
+        self,
+        max_queue: int = 10,
+        flush_secs: int = 120,
+        filename_suffix: str = ""
+    ):
+        """Create a registed summary writer. This is a shorthand of
+        ```python
+        writer = SummaryWriter(log_dir=tracker.log_dir, purge_step=tracker.start_epoch)
+        writer = tracker.register_summary_writer(writer)
+        ```
+
+        Returns:
+            SummaryWriter: return a summary writer which has been registed
+        """
+        assert self._writer is not None, (
+            "Try to create a new summary writer while there is one writer that has been registered"
+        )
+        writer = SummaryWriter(
+            log_dir=self.log_dir,
+            purge_step=self.start_epoch,
+            max_queue=max_queue,
+            flush_secs=flush_secs,
+            filename_suffix=filename_suffix,
+        )
+        return self._register_add_scalar_hook(writer)
+
+    def register_summary_writer(self, writer: SummaryWriter):
+        assert self._writer is not None, (
+            "Try to register a summary writer while another summary writer has been registerd."
+        )
+        return self._register_add_scalar_hook(writer)
+
     def register_scalar(
         self,
-        writer: SummaryWriter,
         tag: str,
         scalar_type: Union[BUILTIN_TYPES, MetricsLike],
         for_early_stopping: bool = False,
     ):
 
-        writer = self._register_add_scalar_hook(writer)
         if for_early_stopping:
             assert self._es_metrics is None, (
                 "try to register a second scalar for early stopping, which is not allowed."
@@ -320,7 +375,7 @@ class BaseTracker:
 
         else:
             self._metrics.append(_Scalar.from_arg(tag, scalar_type))
-        return writer
+        return
 
 
     def range(self, to_epoch: int):
@@ -415,7 +470,7 @@ class BaseTracker:
                 )
             # update best_scalar
             if self._es_handler.is_best_epoch(self._cur_epoch):
-                scalars = self._es_handler.get_cache_scalars(self._cur_epoch)
+                scalars = self._scalar_cache.get_cache_scalars(self._cur_epoch)
                 self._best_scalars = scalars
             return self._best_scalars
 
@@ -423,6 +478,18 @@ class BaseTracker:
         # call after training loop
         return self._best_scalars
 
+    def is_best_epoch(self, epoch: int):
+        return self._es_handler.is_best_epoch(epoch)
+
+    def add_scalar(
+        self,
+        tag: str,
+        scalar_value,
+        global_step=None,
+    ):
+        self._add_scalar_hook(tag, scalar_value, global_step)
+        return
+    
     def _add_scalar_hook(
         self,
         tag: str,
@@ -430,7 +497,13 @@ class BaseTracker:
         global_step=None,
     ):
 
-        self._es_handler.cache_scalar(tag, scalar_value, global_step)
+        cached_scalar = self._scalar_cache.has_cache(tag, global_step)
+        if cached_scalar is not False:
+            assert cached_scalar == scalar_value, (
+                f"more than one unique scalar value was added for tag: {tag}, epoch: {global_step}"
+            )
+            return 
+        self._scalar_cache.cache_scalar(tag, scalar_value, global_step)
         name = os.path.dirname(tag)
         group = os.path.basename(tag)
         if group == tag:
@@ -457,7 +530,7 @@ class BaseTracker:
         group_str = f"/{group:5}" if group is not None else f"{group:6}"
         
         msg = f"{name:15}{group_str}: {scalar_value}"
-        if tag == self._es_metrics.tag:
+        if self._es_metrics is not None and tag == self._es_metrics.tag:
             attrs = ["underline"] if self._es_handler.is_best_epoch(global_step) else []
             msg = termcolor.colored(msg, "cyan", attrs=attrs)
         self.logger.log(LoggingLevel.ON_SCALAR_ADD, msg)

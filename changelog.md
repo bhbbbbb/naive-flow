@@ -1,5 +1,16 @@
 # Change Log
 
+### 0.3.7
+
+    - seperate register_writer from register_scalar
+        - before, we use `writer = tracker.register_scalar(writer, ...)`
+        - now, we use
+            1. `writer = tracker.register_writer(writer)`
+            1. `tracker.register_scalar(...)  `
+        - tracker.add_scalar can be use without writer registered for earlystopping
+        - add shorthand api to create summary writer
+            - writer = tracker.create_summary_writer()
+
 ### 0.3.6
     - The behavior introduced in 0.3.5 that earlystopping handler will add best metrics as hparams to summary is removed.
         - Instead, use tracker.get_best_scalars() to get the best metrics and add to summary writer explicitly manually.

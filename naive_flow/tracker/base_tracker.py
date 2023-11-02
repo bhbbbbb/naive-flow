@@ -342,7 +342,7 @@ class BaseTracker:
         Returns:
             SummaryWriter: return a summary writer which has been registed
         """
-        assert self._writer is not None, (
+        assert self._writer is None, (
             "Try to create a new summary writer while there is one writer that has been registered"
         )
         writer = SummaryWriter(

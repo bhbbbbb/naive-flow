@@ -355,7 +355,7 @@ class BaseTracker:
         return self._register_add_scalar_hook(writer)
 
     def register_summary_writer(self, writer: SummaryWriter):
-        assert self._writer is not None, (
+        assert self._writer is None, (
             "Try to register a summary writer while another summary writer has been registerd."
         )
         return self._register_add_scalar_hook(writer)

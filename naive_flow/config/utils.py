@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings
 def strfconfig(
     config: BaseSettings,
     strformat: Literal["env", "markdown"] = "env",
+    exclude_none: bool = True,
     padding_len: int = 4,
     min_len: int = 16
 ):
@@ -17,15 +18,14 @@ def strfconfig(
 
     def walk_config(prefix: str, config: BaseSettings):
 
-        dumpped_config = config.model_dump()
-        for field, value in dict(config).items():
+        for field, data in config.model_dump(exclude_none=exclude_none).items():
             delimiter = config.model_config.get("env_nested_delimiter")
-            if isinstance(value, BaseSettings) and delimiter:
+            if isinstance(setting := getattr(config, field), BaseSettings) and delimiter:
                 new_prefix = f"{prefix}{field}{delimiter}"
-                yield from walk_config(new_prefix, value)
+                yield from walk_config(new_prefix, setting)
 
             else:
-                yield f"{prefix}{field}", dumpped_config[field]
+                yield f"{prefix}{field}", data
 
     field_value_pairs = list(walk_config("", config))
     longest_field, _ = max(field_value_pairs, key=lambda p: len(p[0]))

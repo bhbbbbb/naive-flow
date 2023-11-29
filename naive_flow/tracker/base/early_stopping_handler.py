@@ -37,11 +37,11 @@ class EarlyStoppingHandler:
             self._print_best_criterion("New")
             return False
 
-        threshold = self.early_stopping_rounds or "infinity"
-        self.logger.log(
-            LoggingLevel.EARLY_STOPPING_PROGRESS,
-            "Early stopping counter:" f"{self.counter} / {threshold}"
-        )
+        if self.early_stopping_rounds:
+            self.logger.log(
+                LoggingLevel.EARLY_STOPPING_PROGRESS,
+                "Early stopping counter:" f"{self.counter} / {self.early_stopping_rounds}"
+            )
         
         self._print_best_criterion("Current")
         return (

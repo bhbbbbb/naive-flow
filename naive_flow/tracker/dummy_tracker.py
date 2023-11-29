@@ -1,24 +1,16 @@
 from typing import Union, Callable, overload
-
-from torch import nn, optim
-
 from .tracker_config import TrackerConfig
-from .base_tracker import BaseTracker
+from .base_tracker import BaseTracker, MetricsLike, BUILTIN_TYPES
 
 
 
-class SimpleTracker(BaseTracker):
-
-    model: nn.Module
-    optimizer: optim.Optimizer
-    scheduler: optim.lr_scheduler._LRScheduler
+class DummyTracker(BaseTracker):
+    """Dummy tracker that takes neither models, optimizers, nor schedulers
+    """
 
     @overload
     def __init__(
         self,
-        model,
-        optimizer,
-        scheduler = None,
         *,
         config: TrackerConfig = None,
         from_checkpoint: Union[str, Callable] = None,
@@ -45,9 +37,6 @@ class SimpleTracker(BaseTracker):
     @overload
     def __init__(
         self,
-        model,
-        optimizer,
-        scheduler = None,
         *,
         log_root_dir: str = None,
         epochs_per_checkpoint: int = None,
@@ -147,9 +136,6 @@ class SimpleTracker(BaseTracker):
     # pylint: disable=too-many-arguments
     def __init__(
         self,
-        model,
-        optimizer,
-        scheduler = None,
         *,
         log_root_dir: str = None,
         epochs_per_checkpoint: int = None,
@@ -250,10 +236,6 @@ class SimpleTracker(BaseTracker):
                         the behavior. Use "python ... --help" to get the manual
         """
 
-        self.model = model
-        self.optimizer = optimizer
-        self.scheduler = scheduler
-
         super().__init__(
             log_root_dir=log_root_dir,
             epochs_per_checkpoint=epochs_per_checkpoint,
@@ -268,21 +250,32 @@ class SimpleTracker(BaseTracker):
         return
     
     def load(self, checkpoint_dict: dict):
-        
-        self.model.load_state_dict(checkpoint_dict['model'])
-        self.optimizer.load_state_dict(checkpoint_dict['optimizer'])
-        if self.scheduler is not None:
-            self.scheduler.load_state_dict(checkpoint_dict['scheduler'])
-
         return
 
     def save(self) -> dict:
-
-        scheduler_dict = self.scheduler.state_dict() if self.scheduler else {}
-        
-        return {
-            'model': self.model.state_dict(),
-            'optimizer': self.optimizer.state_dict(),
-            'scheduler': scheduler_dict,
-        }
+        return {}
     
+    def range(self, to_epoch: int):
+        raise RuntimeError("DummyTracker.range should never be accessed.")
+
+
+    @overload
+    def get_best_scalars(self):...  # pylint: disable=arguments-differ
+
+    def get_best_scalars(self, no_within_loop_warning: bool = False):
+        assert no_within_loop_warning is False
+        cached_scalar = self._scalar_cache.get_cache_scalars(0)
+        return cached_scalar
+
+    @overload
+    def register_scalar( # pylint: disable=arguments-differ
+        self,
+        tag: str,
+        scalar_type: Union[BUILTIN_TYPES, MetricsLike],
+    ):...
+    
+    def register_scalar(
+        self, tag: str, scalar_type: BUILTIN_TYPES | MetricsLike,
+        for_early_stopping: bool = False):
+        assert for_early_stopping is False
+        return super().register_scalar(tag, scalar_type, for_early_stopping)

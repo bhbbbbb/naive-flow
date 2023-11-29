@@ -23,7 +23,7 @@ from .base.early_stopping_handler import EarlyStoppingHandler
 from ..log import LoggingLevel
 from .. import strfconfig
 
-__all__ = ["BaseTracker", "load_checkpoint", "load_config_dict"]
+__all__ = ["BaseTracker"]
 
 class SaveReason(BaseModel):
 
@@ -87,28 +87,6 @@ class _ScalarCache:
         return scalars
 
 
-def _load_checkpoint(checkpoint_path: str):
-    """Load the specific checkpoint save by Tracker"""
-
-    checkpoint_dict: _CheckpointDict = torch.load(checkpoint_path)
-    if set(checkpoint_dict.keys()) != set(get_type_hints(_CheckpointDict).keys()):
-        checkpoint_name = os.path.basename(checkpoint_path)
-        raise ValueError(
-            f"Checkpoint: {checkpoint_name} is not a checkpoint stored by Tracker."
-        )
-    return checkpoint_dict["user_data"], checkpoint_dict["config"]
-
-def load_config_dict(checkpoint_path: str) -> dict:
-    """Load the config used in the checkpoint"""
-    _, config_dict = _load_checkpoint(checkpoint_path)
-    return config_dict
-
-def load_checkpoint(checkpoint_path: str):
-    """Load the specific checkpoint save by Tracker"""
-
-    user_data, _ = _load_checkpoint(checkpoint_path)
-    return user_data
-
 # pylint: disable=invalid-name
 MetricsArgT = Union[str, Tuple[str, Union[str, Type[MetricsLike]]]]
 
@@ -127,6 +105,7 @@ class BaseTracker:
     @overload
     def __init__(
         self,
+        *,
         config: TrackerConfig = None,
         from_checkpoint: Union[str, Callable] = None,
     ):...
@@ -134,6 +113,7 @@ class BaseTracker:
     @overload
     def __init__(
         self,
+        *,
         log_root_dir: str = None,
         epochs_per_checkpoint: int = None,
         early_stopping_rounds: int = None,
@@ -146,6 +126,7 @@ class BaseTracker:
 
     def __init__(
         self,
+        *,
         log_root_dir: str = None,
         epochs_per_checkpoint: int = None,
         early_stopping_rounds: int = None,
@@ -177,6 +158,7 @@ class BaseTracker:
         self._es_metrics = None
         self._metrics = []
         self._writer = None
+        self._cur_epoch: int = None
         self._best_scalars: Dict[str, Any] = None
         self._scalar_cache = _ScalarCache()
 
@@ -193,26 +175,10 @@ class BaseTracker:
         return
 
     
-    @staticmethod
-    def _new_log_dir(
-            comment: str,
-            log_root_dir: str,
-        ):
-        
-        current_time = formatted_now()
-        comment = comment or ""
-        log_dir = os.path.join(
-            log_root_dir, current_time + "_" + socket.gethostname() + comment
-        )
-
-        os.makedirs(log_dir)
-
-        return log_dir
-
 
     @staticmethod
     def _start_new_training(config: TrackerConfig):
-        log_dir = BaseTracker._new_log_dir(config.comment, config.log_root_dir)
+        log_dir = new_time_formatted_log_dir(config.comment, config.log_root_dir)
 
         set_handlers(log_dir if config.enable_logging else None)
         logging.getLogger(__name__).debug(strfconfig(config))
@@ -281,7 +247,7 @@ class BaseTracker:
             
         if create_new_dir(config.delete_ok):
             # create a new log_dir in the root_dir
-            log_dir = BaseTracker._new_log_dir(config.comment, config.log_root_dir)
+            log_dir = new_time_formatted_log_dir(config.comment, config.log_root_dir)
         else:
             # use the existing log_dir
             log_dir = checkpoint_log_dir
@@ -478,6 +444,16 @@ class BaseTracker:
         # call after training loop
         return self._best_scalars
 
+    def is_regular_saving_epoch(self, epoch: int):
+        """Return whether the epoch is a regular saving epoch determined by
+            `epochs_per_checkpoint`
+
+        """
+        return (
+            bool(self.config.epochs_per_checkpoint)
+            and (epoch + 1 - self.start_epoch) % self.config.epochs_per_checkpoint == 0
+        )
+
     def is_best_epoch(self, epoch: int):
         return self._es_handler.is_best_epoch(epoch)
 
@@ -497,6 +473,9 @@ class BaseTracker:
         global_step=None,
     ):
 
+        if global_step is None:
+            global_step = self._cur_epoch or 0
+
         cached_scalar = self._scalar_cache.has_cache(tag, global_step)
         if cached_scalar is not False:
             assert cached_scalar == scalar_value, (
@@ -508,12 +487,13 @@ class BaseTracker:
         group = os.path.basename(tag)
         if group == tag:
             group = None
+            name = tag
         if self._es_metrics is not None and tag == self._es_metrics.tag:
             if self._evaluated is True:
                 raise RuntimeError("More than one evaluation scaler were added during an epoch.")
 
             scalar_value = self._es_metrics.metrics(scalar_value)
-            self._es_handler.update(name, scalar_value, global_step)
+            self._es_handler.update(tag, scalar_value, global_step)
             self._evaluated = True
 
         else:
@@ -527,16 +507,26 @@ class BaseTracker:
             if not found and name in BUILTIN_METRICS:
                 scalar_value = BUILTIN_METRICS[name](scalar_value)
 
-        group_str = f"/{group:5}" if group is not None else f"{group:6}"
+        group_str = f"/{group}" if group is not None else ""
         
-        msg = f"{name:15}{group_str}: {scalar_value}"
+        msg = f"{name:15}{group_str:6}: {scalar_value}"
         if self._es_metrics is not None and tag == self._es_metrics.tag:
             attrs = ["underline"] if self._es_handler.is_best_epoch(global_step) else []
             msg = termcolor.colored(msg, "cyan", attrs=attrs)
         self.logger.log(LoggingLevel.ON_SCALAR_ADD, msg)
         return
 
+    def save_checkpoint(self, suffix: str = ""):
+        """Save the current state as a checkpoint manually.
 
+        Args:
+            suffix (str, optional): Suffix append to the filename of checkpoint.
+            Defaults to "".
+        """
+        
+        return self.__save(self._cur_epoch, suffix=suffix)
+
+    
     def _save(self, cur_epoch: int, save_reason: SaveReason) -> str:
 
         def save_reason_suffix(save_reason: SaveReason):
@@ -547,8 +537,10 @@ class BaseTracker:
                 return "_end"
             
             return ""
-
         
+        return self.__save(cur_epoch, suffix=save_reason_suffix(save_reason))
+        
+    def __save(self, cur_epoch: int, suffix: str = "") -> str:
         checkpoint_dict = _CheckpointDict(
             user_data=self.save(),
             config=self.config.model_dump(),
@@ -556,7 +548,7 @@ class BaseTracker:
         )
         now = formatted_now()
         
-        name = f"{now}_epoch_{cur_epoch}{save_reason_suffix(save_reason)}"
+        name = f"{now}_epoch_{cur_epoch}{suffix}"
 
         path = os.path.join(self.log_dir, name)
         torch.save(checkpoint_dict, path)
@@ -586,7 +578,8 @@ class BaseTracker:
         return name
     
     def __del__(self):
-        del_file_handler(self.log_dir)
+        if hasattr(self, "log_dir"):
+            del_file_handler(self.log_dir)
         return
 
     def load(self, checkpoint_dict: dict):
@@ -597,6 +590,20 @@ class BaseTracker:
     
 def formatted_now():
     return datetime.now().strftime(r"%b%d_%H-%M-%S")
+
+def new_time_formatted_log_dir(
+    comment: str,
+    log_root_dir: str,
+):
+    current_time = formatted_now()
+    comment = comment or ""
+    log_dir = os.path.join(
+        log_root_dir, current_time + "_" + socket.gethostname() + comment
+    )
+
+    os.makedirs(log_dir)
+
+    return log_dir
 
 def prompt_delete_later(checkpoint_name: str, to_delete: List[str]):
 

@@ -1,5 +1,6 @@
-from typing import Union
-from pydantic import field_validator, NonNegativeInt
+import warnings
+from typing import Union, Literal
+from pydantic import field_validator, NonNegativeInt, model_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class TrackerConfig(BaseSettings):
@@ -9,7 +10,7 @@ class TrackerConfig(BaseSettings):
         validate_assignment=True,
     )
 
-    log_root_dir: str = "runs"
+    log_root_dir: Union[Literal[False], str] = "runs"
     """
     `log_root_dir` for logs
 
@@ -44,7 +45,7 @@ class TrackerConfig(BaseSettings):
     ```
     """
 
-    enable_logging: bool = True
+    enable_logging: bool = Field(True, exclude=True)
     """whether log to file "log.log". It"s useful to turn this off when inference on kaggle"""
 
     early_stopping_rounds: NonNegativeInt = 0
@@ -88,6 +89,17 @@ class TrackerConfig(BaseSettings):
     comment: Union[str, None] = None
     """Same as the argument of SummaryWriter"""
 
+    verbose: bool = True
+
+    progress: Literal["plain", "tqdm", "none"] = "tqdm"
+
+    @field_validator("log_root_dir", mode="before")
+    @classmethod
+    def check_is_false(cls, v):
+        if isinstance(v, str) and v.lower() == "false":
+            return False
+        return v
+
     @field_validator(
         "early_stopping_rounds", "save_n_best", "epochs_per_checkpoint",
         mode="after"
@@ -97,3 +109,14 @@ class TrackerConfig(BaseSettings):
         if v < 0:
             raise ValueError(f"should be non negative integer but got {v}.")
         return v
+    
+    @model_validator(mode="before")
+    @classmethod
+    def handle_deprecated(cls, data: dict):
+        if data.get("enable_logging", True) is False:
+            data["log_root_dir"] = False
+            warnings.warn(
+                "Field enable_logging=False has been deprecated. "
+                "Use log_root_dir=False instead."
+            )
+        return data

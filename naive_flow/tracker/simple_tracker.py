@@ -20,35 +20,6 @@ class SimpleTracker(BaseTracker):
         optimizer,
         scheduler = None,
         *,
-        config: TrackerConfig = None,
-        from_checkpoint: Union[str, Callable] = None,
-    ):
-        """Tracker for classic setup: a model, an optimizer, and a scheduler (optional).
-
-        Handle checkpoint saving, early stopping, and integrate with tensorboard.SummaryWriter
-
-        Args:
-            model (nn.Module): model would be saved automatically basen on the settings
-            optimizer: 
-            scheduler: Optional.
-            config (TrackerConfig): config.
-            from_checkpoint (str): Defaults to None. If omit, it will start a new training
-                procedure, if a path to checkpoint is specified, the checkpoint will be load and
-                start from which epoch the checkpoint saved.
-                This argument can be set using
-                    1. tracker.checkpoint.best(...) automatically get the best evaluated checkpoint
-                    2. tracker.checkpoint.latest(...) automatically get the latest checkpoint
-                    3. tracker.checkpoint.parse_args() use the command line arguments to decide
-                        the behavior. Use "python ... --help" to get the manual
-        """
-
-    @overload
-    def __init__(
-        self,
-        model,
-        optimizer,
-        scheduler = None,
-        *,
         log_root_dir: str = None,
         epochs_per_checkpoint: int = None,
         early_stopping_rounds: int = None,

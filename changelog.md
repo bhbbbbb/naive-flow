@@ -1,5 +1,10 @@
 # Change Log
 
+
+### 0.3.8
+
+    - Add DummyTracker
+
 ### 0.3.7
 
     - seperate register_writer from register_scalar

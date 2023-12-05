@@ -1,5 +1,15 @@
 # Change Log
 
+### 0.3.9
+
+    - Add options to tracker_config
+        - Add progress: Literal['tqdm', 'plain', 'none']
+        - Add verbose
+    - Deprecate controlling verbose using logging level
+
+    - Tracker will not save config in checkpoint anymore.
+        - Users can still save their config using custom tracker with custom saving hook
+
 
 ### 0.3.8
 

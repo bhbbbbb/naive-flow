@@ -5,7 +5,7 @@ import socket
 from datetime import datetime
 from fnmatch import fnmatch
 from typing import (
-    Union, Tuple, TypedDict, Type, List, get_type_hints, Callable, overload, NamedTuple, Dict, Any
+    Union, Tuple, TypedDict, Type, List, Callable, overload, NamedTuple, Dict, Any, Literal
 )
 from functools import wraps
 
@@ -34,7 +34,6 @@ class SaveReason(BaseModel):
 class _CheckpointDict(TypedDict):
 
     user_data: dict
-    config: dict
     epoch: int
 
 class _Scalar(NamedTuple):
@@ -110,45 +109,23 @@ class BaseTracker:
         save_n_best: int = None,
         save_end: bool = None,
         comment: str = None,
-        enable_logging: bool = True,
+        verbose: bool = None,
+        progress: Literal["plain", "tqdm", "none"] = None,
+        enable_logging: bool = None,
         from_checkpoint: Union[str, Callable] = None,
     ):...
 
-    def __init__(
-        self,
-        *,
-        log_root_dir: str = None,
-        epochs_per_checkpoint: int = None,
-        early_stopping_rounds: int = None,
-        save_n_best: int = None,
-        save_end: bool = None,
-        comment: str = None,
-        enable_logging: bool = True,
-        config: TrackerConfig = None,
-        from_checkpoint: Union[str, Callable] = None,
-    ):
+    def __init__(self, from_checkpoint: Union[str, Callable]=None, **kwargs):
 
-        
-        def default_arg(arg, value):
-            return arg if arg is not None else value
-
-        if config is None:
-            config = TrackerConfig(
-                log_root_dir=default_arg(log_root_dir, "runs"),
-                epochs_per_checkpoint=default_arg(epochs_per_checkpoint, 0),
-                early_stopping_rounds=default_arg(early_stopping_rounds, 0),
-                save_n_best=default_arg(save_n_best, 1),
-                save_end=default_arg(save_end, True),
-                enable_logging=enable_logging,
-                comment=comment,
-            )
-        else:
+        if "config" in kwargs:
             warnings.warn(
                 "The use of config as argument has been deprecated, "
                 "use `**config.model_dump()` instead",
                 DeprecationWarning,
             )
-
+            config = kwargs["config"]
+        else:
+            config = TrackerConfig.model_validate(kwargs)
 
         self.config = config
 
@@ -486,7 +463,7 @@ class BaseTracker:
     def __save(self, cur_epoch: int, suffix: str = "") -> str:
         checkpoint_dict = _CheckpointDict(
             user_data=self.save(),
-            config=self.config.model_dump(),
+            #config=self.config.model_dump(),
             epoch=cur_epoch,
         )
         now = formatted_now()
@@ -587,14 +564,9 @@ def _load_checkpoint(
     )
     checkpoint_dict: _CheckpointDict = torch.load(checkpoint_path)
 
-    if set(checkpoint_dict.keys()) == set(get_type_hints(_CheckpointDict).keys()):
-        # Checkpoint was created by tracker
-        user_load_hook(checkpoint_dict["user_data"])
-        start_epoch = checkpoint_dict["epoch"] + 1
-    
-    else:
-        user_load_hook(checkpoint_dict)
-        start_epoch = 0
+    user_data = checkpoint_dict.get("user_data", checkpoint_dict)
+    start_epoch = checkpoint_dict.get("epoch", -1) + 1
+    user_load_hook(user_data)
 
 
     checkpoint_name = os.path.basename(checkpoint_path)

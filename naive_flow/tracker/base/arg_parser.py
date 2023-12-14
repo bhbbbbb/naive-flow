@@ -2,11 +2,13 @@ from functools import lru_cache
 from typing import Union, Literal
 from argparse import ArgumentParser, Namespace
 
+
 class Args(Namespace):
     command: Literal["load", "best", "load_best", "latest", "load_latest"]
     checkpoint: Union[str, None]
     # delete_ok: Union[bool, None]
     log_dir: Union[str, None]
+
 
 @lru_cache(maxsize=1)
 def get_default_arg_parser() -> ArgumentParser:
@@ -53,9 +55,7 @@ def get_default_arg_parser() -> ArgumentParser:
     #     type=bool,
     # )
     load_best_parser.add_argument(
-        "--log-dir",
-        type=str,
-        help=(
+        "--log-dir", type=str, help=(
             "Load the best checkpoint from the given log-dir. If not specified, "
             "Tracker will detect and use the latest log-dir in the parameter log_root_dir"
         )
@@ -74,18 +74,18 @@ def get_default_arg_parser() -> ArgumentParser:
     #     type=bool,
     # )
     load_latest_parser.add_argument(
-        "--log-dir",
-        type=str,
-        help=(
+        "--log-dir", type=str, help=(
             "Load the latest checkpoint from the given log-dir. If not specified, "
             "Tracker will detect and use the latest log-dir in the parameter log_root_dir"
         )
     )
     return arg_parser
 
+
 def use_default_arg_parser():
     get_default_arg_parser().parse_args()
     return
+
 
 def get_args() -> Args:
     args = get_default_arg_parser().parse_args()

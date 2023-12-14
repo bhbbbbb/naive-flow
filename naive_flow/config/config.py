@@ -8,21 +8,29 @@ from typing_extensions import deprecated
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class Writable:
     """for type hint only"""
+
     def write(self, msg: str):
         pass
 
+
 T = TypeVar("T")
+
 
 # pylint: disable=invalid-name
 @deprecated("No reason to use this")
-def NaiveFlowField(*default, direct_access: Union[bool, int], **pydantic_kwargs):
+def NaiveFlowField(
+    *default, direct_access: Union[bool, int], **pydantic_kwargs
+):
     return Field(*default, direct_access=direct_access, **pydantic_kwargs)
+
 
 class ConfigConfigDict(SettingsConfigDict):
     display_field_padding_len: int
     display_field_min_len: int
+
 
 @deprecated("Use BaseSettings Directly")
 class BaseConfig(BaseSettings):
@@ -37,7 +45,7 @@ class BaseConfig(BaseSettings):
     )
 
     def __str__(self):
-        
+
         sio = StringIO()
         sio.write("Configurations:\n")
 
@@ -62,7 +70,6 @@ class BaseConfig(BaseSettings):
         for field, value in field_value_pairs:
             sio.write(f"{field:{indent}}= {value}\n")
 
-
         sio.write("\n")
         string = sio.getvalue()
         sio.close()
@@ -78,7 +85,7 @@ class BaseConfig(BaseSettings):
 
         print(str(self), file=file, end="")
         return
-    
+
     @lru_cache(maxsize=1)
     def __find_extended_fields(self):
         extended_fields = []
@@ -93,18 +100,19 @@ class BaseConfig(BaseSettings):
                     extended_fields_with_priority.append((field, allow))
 
         extended_fields_with_priority.sort(key=lambda v: v[-1])
-        extended_fields_with_priority = map(lambda v: v[0], extended_fields_with_priority)
+        extended_fields_with_priority = map(
+            lambda v: v[0], extended_fields_with_priority
+        )
         return list(extended_fields_with_priority) + extended_fields
-
 
     def __getattribute__(self, __name: str):
         """Allow get attributes in member configs
         """
-        
+
         try:
             value = super().__getattribute__(__name)
         except AttributeError as e:
-            
+
             found = False
             for field in self.__find_extended_fields():
                 member_config = getattr(self, field)
@@ -118,7 +126,7 @@ class BaseConfig(BaseSettings):
                 raise e
 
         return value
-    
+
     # def __setattr__(self, name: str, value) -> None:
     #     tem = super().__getattribute__(name)
 

@@ -3,6 +3,7 @@ from typing import Union, Callable, overload, Literal
 from torch import nn, optim
 from .base_tracker import BaseTracker
 
+
 class SimpleTracker(BaseTracker):
 
     model: nn.Module
@@ -14,7 +15,7 @@ class SimpleTracker(BaseTracker):
         self,
         model,
         optimizer,
-        scheduler = None,
+        scheduler=None,
         *,
         log_root_dir: str = None,
         epochs_per_checkpoint: int = None,
@@ -117,7 +118,7 @@ class SimpleTracker(BaseTracker):
         self,
         model,
         optimizer,
-        scheduler = None,
+        scheduler=None,
         from_checkpoint: Union[str, Callable] = None,
         **kwargs,
     ):
@@ -131,9 +132,9 @@ class SimpleTracker(BaseTracker):
             from_checkpoint=from_checkpoint,
         )
         return
-    
+
     def load(self, checkpoint_dict: dict):
-        
+
         self.model.load_state_dict(checkpoint_dict['model'])
         self.optimizer.load_state_dict(checkpoint_dict['optimizer'])
         if self.scheduler is not None:
@@ -144,10 +145,9 @@ class SimpleTracker(BaseTracker):
     def save(self) -> dict:
 
         scheduler_dict = self.scheduler.state_dict() if self.scheduler else {}
-        
+
         return {
             'model': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
             'scheduler': scheduler_dict,
         }
-    

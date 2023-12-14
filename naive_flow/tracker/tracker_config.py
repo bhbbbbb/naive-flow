@@ -3,6 +3,7 @@ from typing import Union, Literal
 from pydantic import field_validator, NonNegativeInt, model_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class TrackerConfig(BaseSettings):
 
     model_config = SettingsConfigDict(
@@ -109,7 +110,7 @@ class TrackerConfig(BaseSettings):
         if v < 0:
             raise ValueError(f"should be non negative integer but got {v}.")
         return v
-    
+
     @model_validator(mode="before")
     @classmethod
     def handle_deprecated(cls, data: dict):

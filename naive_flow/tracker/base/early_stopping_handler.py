@@ -3,11 +3,9 @@ from .metrics import MetricsLike
 from .log import StdoutLogFile
 from ..tracker_config import TrackerConfig
 
+_ES_BAR_FORMAT = ("EarlyStoppingCounter: {n_fmt}/{total_fmt}, "
+                  "{desc}")
 
-_ES_BAR_FORMAT = (
-    "EarlyStoppingCounter: {n_fmt}/{total_fmt}, "
-    "{desc}"
-)
 
 class EarlyStoppingTqdm(tqdm):
 
@@ -19,12 +17,15 @@ class EarlyStoppingTqdm(tqdm):
         )
         return
 
+
 class EarlyStoppingHandler:
 
     best_criterion: MetricsLike
     counter: int
 
-    def __init__(self, log_file: StdoutLogFile, config: TrackerConfig, tqdm_file):
+    def __init__(
+        self, log_file: StdoutLogFile, config: TrackerConfig, tqdm_file
+    ):
         self.best_criterion = None
         self.counter = 0
         self.best_epoch = -1
@@ -33,18 +34,22 @@ class EarlyStoppingHandler:
         self.config = config
         self.log_file = log_file
         if config.progress == "tqdm":
-            self.pbar = EarlyStoppingTqdm(config.early_stopping_rounds, file=tqdm_file)
+            self.pbar = EarlyStoppingTqdm(
+                config.early_stopping_rounds, file=tqdm_file
+            )
         else:
             self.pbar = None
         return
-    
+
     def __del__(self):
         if self.pbar is not None:
             self.pbar.close()
-    
+
     def update(self, name: str, new_criterion: MetricsLike, epoch: int):
 
-        if self.best_criterion is not None and not new_criterion.better_than(self.best_criterion):
+        if self.best_criterion is not None and not new_criterion.better_than(
+            self.best_criterion
+        ):
             self.counter += 1
             if self.pbar is not None:
                 self.pbar.update()
@@ -57,7 +62,7 @@ class EarlyStoppingHandler:
         if self.pbar is not None:
             self.pbar.reset()
         return
-    
+
     def is_best_epoch(self, epoch: int) -> bool:
         return self.best_epoch >= 0 and self.best_epoch == epoch
 
@@ -69,10 +74,12 @@ class EarlyStoppingHandler:
 
         if self.early_stopping_rounds:
             print(
-                "Early stopping counter:" f"{self.counter} / {self.early_stopping_rounds}",
-                file=self.log_file if self.config.progress == "plain" else self.log_file.log
+                "Early stopping counter:"
+                f"{self.counter} / {self.early_stopping_rounds}",
+                file=self.log_file
+                if self.config.progress == "plain" else self.log_file.log
             )
-        
+
         self._print_best_criterion("Current")
         return (
             self.early_stopping_rounds > 0
@@ -89,10 +96,10 @@ class EarlyStoppingHandler:
             msg = (
                 f"{new_or_current} best {self.best_name}@epoch{self.best_epoch}: "
                 f"{self.best_criterion}"
-            ) 
+            )
             print(
-                msg,
-                file=self.log_file if self.config.progress == "plain" else self.log_file.log
+                msg, file=self.log_file
+                if self.config.progress == "plain" else self.log_file.log
             )
             if self.pbar is not None:
                 self.pbar.set_description(msg)

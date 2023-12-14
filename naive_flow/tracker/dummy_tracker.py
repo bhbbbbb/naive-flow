@@ -2,7 +2,6 @@ from typing import Union, Callable, overload, Literal
 from .base_tracker import BaseTracker, MetricsLike, BUILTIN_TYPES
 
 
-
 class DummyTracker(BaseTracker):
     """Dummy tracker that takes neither models, optimizers, nor schedulers
     """
@@ -118,18 +117,19 @@ class DummyTracker(BaseTracker):
             **kwargs,
         )
         return
-    
+
     def load(self, checkpoint_dict: dict):
         return
 
     def save(self) -> dict:
         return {}
-    
+
     def range(self, to_epoch: int):
         raise RuntimeError('DummyTracker.range should never be accessed.')
 
     @overload
-    def get_best_scalars(self):...  # pylint: disable=arguments-differ
+    def get_best_scalars(self):  # pylint: disable=arguments-differ
+        ...
 
     def get_best_scalars(self, no_within_loop_warning: bool = False):
         assert no_within_loop_warning is False
@@ -141,10 +141,12 @@ class DummyTracker(BaseTracker):
         self,
         tag: str,
         scalar_type: Union[BUILTIN_TYPES, MetricsLike],
-    ):...
-    
+    ):
+        ...
+
     def register_scalar(
         self, tag: str, scalar_type: BUILTIN_TYPES | MetricsLike,
-        for_early_stopping: bool = False):
+        for_early_stopping: bool = False
+    ):
         assert for_early_stopping is False
         return super().register_scalar(tag, scalar_type, for_early_stopping)

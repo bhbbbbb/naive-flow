@@ -1,4 +1,5 @@
-from .config.utils import strfconfig
+from .config.utils import strfconfig, dump_config
+from .tracker.base.log import set_printoptions
 from . import tracker
 
 
@@ -12,7 +13,8 @@ def load_checkpoint(checkpoint_path: str):
 
     checkpoint_dict: _CheckpointDict = torch.load(checkpoint_path)
 
-    if set(get_type_hints(_CheckpointDict).keys()) <= set(checkpoint_dict.keys()):
+    if set(get_type_hints(_CheckpointDict).keys()
+           ) <= set(checkpoint_dict.keys()):
         return checkpoint_dict["user_data"]
     checkpoint_name = os.path.basename(checkpoint_path)
     raise ValueError(

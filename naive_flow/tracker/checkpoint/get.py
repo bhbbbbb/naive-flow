@@ -4,18 +4,23 @@ from .utils import list_checkpoints, get_latest_log_dir
 from ..base.arg_parser import get_args
 
 def parse_args():
+    """Use command-line arguments to determine whether or how tracker loads checkpoints
+
+    >>> Tracker(..., from_checkpoint=nf.tracker.checkpoint.parse_args())
+
+    """
 
     args = get_args()
     if args.command in ["best", "load_best"]:
-        return best(log_dir=args.log_dir)
+        return _best(log_dir=args.log_dir)
     if args.command in ["latest", "load_latest"]:
-        return latest(log_dir=args.log_dir)
+        return _latest(log_dir=args.log_dir)
     if args.command == "load":
         return args.checkpoint
 
     return None
 
-def best(log_dir: str = None):
+def _best(log_dir: str = None):
 
     def find_best(log_dir: str):
         checkpoint_list = list_checkpoints(log_dir)
@@ -42,7 +47,28 @@ def best(log_dir: str = None):
     
     return find_best(log_dir)
 
-def latest(log_dir: str = None):
+def best(*, log_dir: str = None, log_root_dir: str = None):
+    """Load best saved checkpoint automatically
+
+    Args:
+        log_dir (str): If not specfied, the latest time-formatted directory
+            in `log_root_dir` will be used.
+        log_root_dir (str): Should be omitted if `log_dir` is provided.
+    """
+
+    tem = _best(log_dir)
+    if log_dir is not None:
+        assert log_root_dir is None, "log_root_dir cannot be specified along with log_dir"
+        return tem
+    
+    assert log_root_dir is not None, "log_dir cannot be specified along with log_root_dir"
+
+    return tem(log_root_dir)
+
+
+    
+
+def _latest(log_dir: str = None):
     """Load latest saved checkpoint automatically
 
     Args:
@@ -64,3 +90,21 @@ def latest(log_dir: str = None):
         return hook
 
     return find_latest_checkpoint(log_dir)
+
+def latest(*, log_dir: str = None, log_root_dir: str = None):
+    """Load latest saved checkpoint automatically
+
+    Args:
+        log_dir (str): If not specfied, the latest time-formatted directory
+            in `log_root_dir` will be used.
+        log_root_dir (str): Should be omitted if `log_dir` is provided.
+    """
+
+    tem = _latest(log_dir)
+    if log_dir is not None:
+        assert log_root_dir is None, "log_root_dir cannot be specified along with log_dir"
+        return tem
+    
+    assert log_root_dir is not None, "log_dir cannot be specified along with log_root_dir"
+
+    return tem(log_root_dir)

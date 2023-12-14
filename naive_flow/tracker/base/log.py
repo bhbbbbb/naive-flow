@@ -1,11 +1,31 @@
 import logging
 import os
 import sys
-from typing import Dict
+from typing import Dict, Literal
 import contextlib
 from typing_extensions import deprecated
 from tqdm import tqdm
 from tqdm.contrib import DummyTqdmFile
+
+class Global:
+    print_options = {}
+
+def set_printoptions(
+    progress: Literal["none", "tqdm", "plain"] = None,
+    verbose: bool = None,
+):
+    """Set global print options. This options will override aruguments for
+        later initialized Tracker.
+    """
+
+    def gen():
+        if progress is not None:
+            yield ("progress", progress)
+        if verbose is not None:
+            yield ("verbose", verbose)
+
+    Global.print_options = dict(gen())
+    return
 
 @contextlib.contextmanager
 def std_out_err_redirect_tqdm():

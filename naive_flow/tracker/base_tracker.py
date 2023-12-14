@@ -5,7 +5,8 @@ import socket
 from datetime import datetime
 from fnmatch import fnmatch
 from typing import (
-    Union, Tuple, TypedDict, Type, List, Callable, overload, NamedTuple, Dict, Any, Literal
+    Union, Tuple, TypedDict, Type, List, Callable, overload, NamedTuple, Dict,
+    Any, Literal
 )
 from functools import wraps
 
@@ -17,17 +18,18 @@ import termcolor
 
 from .tracker_config import TrackerConfig
 from .checkpoint.utils import list_checkpoints_later_than
-from .base.log import StdoutLogFile, std_out_err_redirect_tqdm, RangeTqdm, ScalarTqdms
+from .base.log import StdoutLogFile, std_out_err_redirect_tqdm, RangeTqdm, ScalarTqdms, Global
 from .base.metrics import MetricsLike, BUILTIN_METRICS, BUILTIN_TYPES
 from .base.early_stopping_handler import EarlyStoppingHandler
 
 __all__ = ["BaseTracker"]
 
+
 class SaveReason(BaseModel):
 
     early_stopping: bool = False
     end: bool = False
-    regular: int = 0 # epochs_per_checkpoint
+    regular: int = 0  # epochs_per_checkpoint
     best: bool = False
 
 
@@ -36,13 +38,16 @@ class _CheckpointDict(TypedDict):
     user_data: dict
     epoch: int
 
+
 class _Scalar(NamedTuple):
-    
+
     tag: str
     metrics: MetricsLike
 
     @classmethod
-    def from_arg(cls, tag: str, scalar_type: Union[BUILTIN_TYPES, MetricsLike]):
+    def from_arg(
+        cls, tag: str, scalar_type: Union[BUILTIN_TYPES, MetricsLike]
+    ):
         # ('a_loss/valid', 'loss')
         # ('b_loss/valid', 'loss')
         # ('a_metrics/valid', Metrics)
@@ -57,10 +62,12 @@ class _Scalar(NamedTuple):
                 )
 
             scalar_type = BUILTIN_METRICS.get(scalar_type)
-        
+
         return cls(tag, scalar_type)
 
+
 class _ScalarCache:
+
     def __init__(self):
         self.scalar_cache = [{"epoch": None}, {"epoch": None}]
         return
@@ -71,7 +78,7 @@ class _ScalarCache:
 
         self.scalar_cache[epoch & 1][tag] = scalar
         return
-    
+
     def has_cache(self, tag: str, epoch: int):
         scalars = self.scalar_cache[epoch & 1]
         if scalars["epoch"] != epoch:
@@ -87,6 +94,7 @@ class _ScalarCache:
 # pylint: disable=invalid-name
 MetricsArgT = Union[str, Tuple[str, Union[str, Type[MetricsLike]]]]
 
+
 class BaseTracker:
     log_root_dir: str
     log_dir: str
@@ -97,7 +105,6 @@ class BaseTracker:
     
         In the above case, \\RUNS is the log_root_dir, `Oct....` is the log_dir
     """
-
 
     @overload
     def __init__(
@@ -113,9 +120,10 @@ class BaseTracker:
         progress: Literal["plain", "tqdm", "none"] = None,
         enable_logging: bool = None,
         from_checkpoint: Union[str, Callable] = None,
-    ):...
+    ):
+        ...
 
-    def __init__(self, from_checkpoint: Union[str, Callable]=None, **kwargs):
+    def __init__(self, from_checkpoint: Union[str, Callable] = None, **kwargs):
 
         if "config" in kwargs:
             warnings.warn(
@@ -125,12 +133,13 @@ class BaseTracker:
             )
             config = kwargs["config"]
         else:
+            kwargs.update(Global.print_options)
             config = TrackerConfig.model_validate(kwargs)
 
         self.config = config
 
         self._es_metrics = None
-        self._metrics = []
+        self._metrics: list[_Scalar] = []
         self._writer = None
         self._cur_epoch: int = None
         self._best_scalars: Dict[str, Any] = None
@@ -141,9 +150,9 @@ class BaseTracker:
         if from_checkpoint is None:
             # start a new training process
             self._log_dir = (
-                new_time_formatted_log_dir(config.comment, config.log_root_dir)
-                if config.log_root_dir
-                else None
+                new_time_formatted_log_dir(
+                    config.comment, config.log_root_dir
+                ) if config.log_root_dir else None
             )
             self._log_file = StdoutLogFile(self._log_dir)
             self.start_epoch = 0
@@ -152,7 +161,7 @@ class BaseTracker:
                                                         else from_checkpoint(config.log_root_dir)
             self._log_dir, self._log_file, self.start_epoch =\
                     _load_checkpoint(checkpoint_path, config, user_load_hook=self.load)
-        
+
         self._evaluated = False
         return
 
@@ -161,15 +170,24 @@ class BaseTracker:
         assert self._log_dir is not None
         return self._log_dir
 
+    @property
+    def writer(self) -> SummaryWriter:
+        assert self._writer is not None
+        return self._writer
+
+    @property
+    def comment(self) -> str:
+        return self.config.comment
 
     def _register_add_scalar_hook(self, writer: SummaryWriter):
-        
+
         if getattr(writer.add_scalar, "__wrapper__", None) is self:
             # has been wrapped
             return writer
 
         self._writer = writer
         original_fn = writer.add_scalar
+
         @wraps(original_fn)
         def add_scalar_wrapper(
             tag,
@@ -188,15 +206,13 @@ class BaseTracker:
                 double_precision,
             )
             return self._add_scalar_hook(tag, scalar_value, global_step)
-        
+
         add_scalar_wrapper.__wrapper__ = self
         writer.add_scalar = add_scalar_wrapper
         return writer
 
     def create_summary_writer(
-        self,
-        max_queue: int = 10,
-        flush_secs: int = 120,
+        self, max_queue: int = 10, flush_secs: int = 120,
         filename_suffix: str = ""
     ):
         """Create a registed summary writer. This is a shorthand of
@@ -243,13 +259,12 @@ class BaseTracker:
             self._metrics.append(_Scalar.from_arg(tag, scalar_type))
         return
 
-
     def range(self, to_epoch: int):
 
         if to_epoch <= self.start_epoch:
-            raise ValueError(f"expect to_epoch > {self.start_epoch}, got: to_epoch={to_epoch}")
-
-
+            raise ValueError(
+                f"expect to_epoch > {self.start_epoch}, got: to_epoch={to_epoch}"
+            )
 
         with std_out_err_redirect_tqdm() as orig_stdout:
             pbar = RangeTqdm(
@@ -265,7 +280,8 @@ class BaseTracker:
             )
             if self.config.progress != "plain":
                 self._scalar_tqdms = ScalarTqdms(
-                    file=orig_stdout, disable=self.config.progress != "tqdm")
+                    file=orig_stdout, disable=self.config.progress != "tqdm"
+                )
             for epoch in pbar:
 
                 self._cur_epoch = epoch
@@ -274,7 +290,9 @@ class BaseTracker:
                 if self.config.progress == "plain":
                     print(f"Epoch {epoch} / {to_epoch}:", file=self._log_file)
                 else:
-                    print(f"Epoch {epoch} / {to_epoch}:", file=self._log_file.log)
+                    print(
+                        f"Epoch {epoch} / {to_epoch}:", file=self._log_file.log
+                    )
 
                 yield epoch
 
@@ -283,17 +301,18 @@ class BaseTracker:
                         warnings.warn(
                             "EarlyStoppingWarning:\n"
                             "Early stopping is enable while no criterion scalar has been added.\n"
-                            "TODO: provide ways to suppress this warning\n" #TODO
+                            "TODO: provide ways to suppress this warning\n"  #TODO
                         )
 
                 save_reason = SaveReason()
 
                 if epoch == to_epoch - 1:
                     save_reason.end = True
-                
+
                 if (
                     self.config.epochs_per_checkpoint
-                    and (epoch + 1 - self.start_epoch) % self.config.epochs_per_checkpoint == 0
+                    and (epoch + 1 - self.start_epoch) %
+                    self.config.epochs_per_checkpoint == 0
                 ):
                     save_reason.regular = self.config.epochs_per_checkpoint
 
@@ -313,24 +332,30 @@ class BaseTracker:
                         self.get_best_scalars(True)
 
                 if (
-                    save_reason.end and self.config.save_end or
-                    save_reason.regular or
-                    save_reason.best and self.config.save_n_best
+                    save_reason.end and self.config.save_end
+                    or save_reason.regular
+                    or save_reason.best and self.config.save_n_best
                 ):
                     self._save(epoch, save_reason)
 
         self._es_handler.close()
         self._scalar_tqdms.close()
         if self.config.progress == "plain":
-            print(f"Training is finish for epochs: {to_epoch}", file=self._log_file)
+            print(
+                f"Training is finish for epochs: {to_epoch}",
+                file=self._log_file
+            )
         else:
-            print(f"Training is finish for epochs: {to_epoch}", file=self._log_file.log)
-        
+            print(
+                f"Training is finish for epochs: {to_epoch}",
+                file=self._log_file.log
+            )
+
         self.start_epoch = self._cur_epoch + 1
         return
-    
+
     def get_best_scalars(self, no_within_loop_warning: bool = False):
-        assert self._es_metrics is not None , (
+        assert self._es_metrics is not None, (
             "You have to have registered summarywriter in tracker using "
             "register_scalar(..., for_early_stopping=True) so that tracker can know what are the "
             "best metrics for an epoch"
@@ -366,8 +391,9 @@ class BaseTracker:
 
         """
         return (
-            bool(self.config.epochs_per_checkpoint)
-            and (epoch + 1 - self.start_epoch) % self.config.epochs_per_checkpoint == 0
+            bool(self.config.epochs_per_checkpoint) and
+            (epoch + 1 - self.start_epoch) % self.config.epochs_per_checkpoint
+            == 0
         )
 
     def is_best_epoch(self, epoch: int):
@@ -381,52 +407,63 @@ class BaseTracker:
     ):
         self._add_scalar_hook(tag, scalar_value, global_step)
         return
-    
+
     def _add_scalar_hook(
         self,
         tag: str,
-        scalar_value,
+        scalar_value: float,
         global_step=None,
     ):
-
         if global_step is None:
             global_step = self._cur_epoch or 0
+
+        def handle_tag():
+            tem = tag.split("/", maxsplit=1)
+            if len(tem) == 1:
+                return tag, None
+            return tem
+
+        name, group = handle_tag()
+
+        def find_registered_metric():
+            if self._es_metrics is not None and tag == self._es_metrics.tag:
+                if self._evaluated is True:
+                    raise RuntimeError(
+                        "More than one evaluation scalar were added during an epoch."
+                    )
+
+                metric_value = self._es_metrics.metrics(scalar_value)
+                self._es_handler.update(tag, metric_value, global_step)
+                self._evaluated = True
+                return metric_value
+
+            for pattern, met in self._metrics:
+                if fnmatch(tag, pattern):
+                    return met(scalar_value)
+
+            if name in BUILTIN_METRICS:
+                return BUILTIN_METRICS[name](scalar_value)
+            return None
 
         cached_scalar = self._scalar_cache.has_cache(tag, global_step)
         if cached_scalar is not False:
             assert cached_scalar == scalar_value, (
                 f"more than one unique scalar value was added for tag: {tag}, epoch: {global_step}"
             )
-            return 
+            return
+
+        metric_value = find_registered_metric()
+        if metric_value is None:
+            return
+
         self._scalar_cache.cache_scalar(tag, scalar_value, global_step)
-        name, group = tag.split("/", maxsplit=1)
-        if group == tag:
-            group = None
-            name = tag
-        if self._es_metrics is not None and tag == self._es_metrics.tag:
-            if self._evaluated is True:
-                raise RuntimeError("More than one evaluation scalar were added during an epoch.")
-
-            scalar_value = self._es_metrics.metrics(scalar_value)
-            self._es_handler.update(tag, scalar_value, global_step)
-            self._evaluated = True
-
-        else:
-            found = False
-            for pattern, met in self._metrics:
-                if fnmatch(tag, pattern):
-                    scalar_value = met(scalar_value)
-                    found = True
-                    break
-
-            if not found and name in BUILTIN_METRICS:
-                scalar_value = BUILTIN_METRICS[name](scalar_value)
 
         group_str = f"/{group}" if group is not None else ""
-        
-        msg = f"{name:15}{group_str:6}: {scalar_value}"
+
+        msg = f"{name:15}{group_str:6}: {metric_value}"
         if self._es_metrics is not None and tag == self._es_metrics.tag:
-            attrs = ["underline"] if self._es_handler.is_best_epoch(global_step) else []
+            attrs = ["underline"
+                     ] if self._es_handler.is_best_epoch(global_step) else []
             msg = termcolor.colored(msg, "cyan", attrs=attrs)
         if self.config.progress == "plain":
             print(msg, file=self._log_file)
@@ -443,23 +480,22 @@ class BaseTracker:
             suffix (str, optional): Suffix append to the filename of checkpoint.
             Defaults to "".
         """
-        
+
         return self.__save(self._cur_epoch, suffix=suffix)
 
-    
     def _save(self, cur_epoch: int, save_reason: SaveReason) -> str:
 
         def save_reason_suffix(save_reason: SaveReason):
             if save_reason.best:
                 return "_best"
-            
+
             if save_reason.early_stopping or save_reason.end:
                 return "_end"
-            
+
             return ""
-        
+
         return self.__save(cur_epoch, suffix=save_reason_suffix(save_reason))
-        
+
     def __save(self, cur_epoch: int, suffix: str = "") -> str:
         checkpoint_dict = _CheckpointDict(
             user_data=self.save(),
@@ -467,7 +503,7 @@ class BaseTracker:
             epoch=cur_epoch,
         )
         now = formatted_now()
-        
+
         name = f"{now}_epoch_{cur_epoch}{suffix}"
 
         path = os.path.join(self.log_dir, name)
@@ -481,8 +517,9 @@ class BaseTracker:
             # purge redundant checkpoints
             pat = r"_epoch_(\d+)_best"
             best_checkpoints = [
-                (int(match.group(1)), filename) for filename in os.listdir(self.log_dir)
-                    if (match := re.search(pat, filename)) is not None
+                (int(match.group(1)), filename)
+                for filename in os.listdir(self.log_dir)
+                if (match := re.search(pat, filename)) is not None
             ]
             best_checkpoints.sort(key=lambda t: t[0])
             not_n_best = best_checkpoints[:-self.config.save_n_best]
@@ -492,11 +529,12 @@ class BaseTracker:
                 print(
                     f"Checkpoint: {filename} was purged "
                     f"due to save_n_best={self.config.save_n_best}.",
-                    file=self._log_file if self.config.verbose else self._log_file.log,
+                    file=self._log_file
+                    if self.config.verbose else self._log_file.log,
                 )
-                
+
         return name
-    
+
     def __del__(self):
         self._log_file.close()
         return
@@ -506,9 +544,11 @@ class BaseTracker:
 
     def save(self) -> dict:
         raise NotImplementedError
-    
+
+
 def formatted_now():
     return datetime.now().strftime(r"%b%d_%H-%M-%S")
+
 
 def new_time_formatted_log_dir(
     comment: str,
@@ -524,9 +564,12 @@ def new_time_formatted_log_dir(
 
     return log_dir
 
+
 def prompt_delete_later(checkpoint_name: str, to_delete: List[str]):
 
-    to_delete_str = "\n".join(f"\t{i + 1}. {name}" for i, name in enumerate(to_delete))
+    to_delete_str = "\n".join(
+        f"\t{i + 1}. {name}" for i, name in enumerate(to_delete)
+    )
 
     print(
         f"You are trying to load checkpoint: {checkpoint_name}\n" +
@@ -535,7 +578,7 @@ def prompt_delete_later(checkpoint_name: str, to_delete: List[str]):
         "you can choose to delete[D] them or keep[K] them and create a new log_dir.\n"
         "Note that you can set the `tracker_config.delete_ok` to avoid this prompt."
     )
-    
+
     while True:
         option = input("Delete [D], Keep [K]: ")
         if option.lower() == "d":
@@ -543,6 +586,7 @@ def prompt_delete_later(checkpoint_name: str, to_delete: List[str]):
 
         if option.lower() == "k":
             return False
+
 
 def _load_checkpoint(
     checkpoint_path: str,
@@ -568,15 +612,16 @@ def _load_checkpoint(
     start_epoch = checkpoint_dict.get("epoch", -1) + 1
     user_load_hook(user_data)
 
-
     checkpoint_name = os.path.basename(checkpoint_path)
     checkpoint_log_dir = os.path.dirname(checkpoint_path)
     checkpoint_root_dir = os.path.dirname(checkpoint_log_dir)
 
     def need_create_new_dir(delete_ok: bool) -> bool:
-        if os.path.abspath(checkpoint_root_dir) != os.path.abspath(config.log_root_dir):
+        if os.path.abspath(checkpoint_root_dir) != os.path.abspath(
+            config.log_root_dir
+        ):
             return True
-            
+
         to_delete = list_checkpoints_later_than(checkpoint_path)
 
         if len(to_delete) == 0:
@@ -584,7 +629,7 @@ def _load_checkpoint(
 
         delete_ok = delete_ok if delete_ok is not None\
                         else prompt_delete_later(checkpoint_name, to_delete)
-        
+
         if delete_ok is False:
             return True
 
@@ -593,13 +638,15 @@ def _load_checkpoint(
             os.remove(path)
             if config.verbose:
                 print(f"Checkpoint: {name} was purged.")
-        
+
         return False
 
     if config.log_root_dir is not False:
         if need_create_new_dir(config.delete_ok):
             # create a new log_dir in the root_dir
-            log_dir = new_time_formatted_log_dir(config.comment, config.log_root_dir)
+            log_dir = new_time_formatted_log_dir(
+                config.comment, config.log_root_dir
+            )
         else:
             # use the existing log_dir
             log_dir = checkpoint_log_dir
@@ -608,10 +655,17 @@ def _load_checkpoint(
 
     log_file = StdoutLogFile(log_dir)
     if config.verbose:
-        print(f"Checkpoint {os.path.basename(checkpoint_path)} was loaded.", file=log_file)
+        print(
+            f"Checkpoint {os.path.basename(checkpoint_path)} was loaded.",
+            file=log_file
+        )
     else:
-        print(f"Checkpoint {os.path.basename(checkpoint_path)} was loaded.", file=log_file.log)
+        print(
+            f"Checkpoint {os.path.basename(checkpoint_path)} was loaded.",
+            file=log_file.log
+        )
     return (log_dir, log_file, start_epoch)
+
 
 # def once_assign_property(attribute: str):
 
@@ -622,13 +676,13 @@ def _load_checkpoint(
 #         if attr is None:
 #             raise ValueError(f"'{attribute}' is referenced before assigned.")
 #         return attr
-    
+
 #     def setter(self, value):
 #         attr = getattr(self, _attribute, None)
 #         if attr is not None:
 #             raise ValueError(f"'{attribute}' is not mutable")
-        
+
 #         setattr(self, _attribute, value)
 #         return
-    
+
 #     return property(getter, setter)

@@ -1,5 +1,11 @@
 # Change Log
 
+### 0.3.10
+
+    - Add `nf.load_env_file(env_file) -> dict[str, str]` utility
+    - Allow set global options for trackers
+
+
 ### 0.3.9
 
     - Add options to tracker_config

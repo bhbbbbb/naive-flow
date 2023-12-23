@@ -1,7 +1,9 @@
+import os
 from typing import Literal
 import json
 from io import StringIO
-from pydantic_settings import BaseSettings
+from pydantic import Field
+from pydantic_settings import BaseSettings, DotEnvSettingsSource
 
 
 def strfconfig(
@@ -79,3 +81,72 @@ def dump_config(
                 file=fout,
             )
     return
+
+
+def load_env_file(
+    env_path: str,
+    env_nested_delimiter: str = "__",
+    explode_env_files: bool = True,
+) -> dict[str, str]:
+
+    assert os.path.isfile(env_path), f"No env file found at {env_path}"
+
+    def load(env_file: str):
+        src = DotEnvSettingsSource(
+            BaseSettings,
+            env_file,
+            env_nested_delimiter=env_nested_delimiter,
+        )
+        env_vars = src._load_env_vars()  # pylint: disable=protected-access
+        for key in env_vars:
+            tem = key.split(env_nested_delimiter, maxsplit=1)
+            if len(tem) >= 2 and tem[0].strip():
+                yield tem[0], src.explode_env_vars(tem[0], Field(), env_vars)
+            else:
+                yield tem[0], src.get_field_value(Field(), tem[0])[0]
+
+    def resolve_env_path(d: dict[str, str], env_path):
+
+        for k, v in d.items():
+            if isinstance(v, dict):
+                yield k, dict(resolve_env_path(v, env_path))
+            elif k == "_env_file":
+                v = v.replace("__file__", env_path)
+                v = os.path.abspath(v)
+                assert os.path.isfile(v), f"{v} does not exist"
+                if explode_env_files:
+                    yield "_env_obj", dict(resolve_env_path(dict(load(v)), v))
+                else:
+                    yield k, v
+            else:
+                yield k, v
+
+    def handle_env_obj(data: dict):
+
+        def merge(d: dict, env_data: dict):
+            for k, v in d.items():
+                if isinstance(v, dict):
+                    env_data[k] = merge(d[k], env_data.get(k, {}))
+                else:
+                    env_data[k] = v
+            return env_data
+
+        env_data = {}
+        if "_env_obj" in data:
+            env_data = handle_env_obj(data["_env_obj"])
+            del data["_env_obj"]
+
+        for k, v in data.items():
+            if not isinstance(v, dict):
+                env_data[k] = v
+            else:
+                env_data[k] = merge(v, env_data.get(k, {}))
+                env_data[k] = handle_env_obj(env_data[k])
+
+        return env_data
+
+    data = dict(load(env_path))
+    data = dict(resolve_env_path(data, env_path))
+    if explode_env_files:
+        data = handle_env_obj(data)
+    return data

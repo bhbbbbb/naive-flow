@@ -133,7 +133,7 @@ class BaseTracker:
             )
             config = kwargs["config"]
         else:
-            kwargs.update(Global.print_options)
+            kwargs.update(Global.tracker_params)
             config = TrackerConfig.model_validate(kwargs)
 
         self.config = config

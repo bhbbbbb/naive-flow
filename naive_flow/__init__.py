@@ -1,5 +1,5 @@
-from .config.utils import strfconfig, dump_config
-from .tracker.base.log import set_printoptions
+from .config.utils import strfconfig, dump_config, load_env_file
+from .tracker.base.log import set_global
 from . import tracker
 
 

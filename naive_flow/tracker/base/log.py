@@ -9,12 +9,13 @@ from tqdm.contrib import DummyTqdmFile
 
 
 class Global:
-    print_options = {}
+    tracker_params = {}
 
 
-def set_printoptions(
+def set_global(
     progress: Literal["none", "tqdm", "plain"] = None,
     verbose: bool = None,
+    log_root_dir: str = None,
 ):
     """Set global print options. This options will override aruguments for
         later initialized Tracker.
@@ -25,8 +26,10 @@ def set_printoptions(
             yield ("progress", progress)
         if verbose is not None:
             yield ("verbose", verbose)
+        if log_root_dir is not None:
+            yield ("log_root_dir", log_root_dir)
 
-    Global.print_options = dict(gen())
+    Global.tracker_params = dict(gen())
     return
 
 

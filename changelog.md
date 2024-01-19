@@ -1,5 +1,8 @@
 # Change Log
 
+### 0.3.11
+    - Add `list_checkpoints` method to BaseTracker
+
 ### 0.3.10
 
     - Add `nf.load_env_file(env_file) -> dict[str, str]` utility

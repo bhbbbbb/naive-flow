@@ -17,7 +17,7 @@ from pydantic import BaseModel
 import termcolor
 
 from .tracker_config import TrackerConfig
-from .checkpoint.utils import list_checkpoints_later_than
+from .checkpoint.utils import list_checkpoints_later_than, list_checkpoints
 from .base.log import StdoutLogFile, std_out_err_redirect_tqdm, RangeTqdm, ScalarTqdms, Global
 from .base.metrics import MetricsLike, BUILTIN_METRICS, BUILTIN_TYPES
 from .base.early_stopping_handler import EarlyStoppingHandler
@@ -125,15 +125,15 @@ class BaseTracker:
 
     def __init__(self, from_checkpoint: Union[str, Callable] = None, **kwargs):
 
+        kwargs.update(Global.tracker_params)
         if "config" in kwargs:
             warnings.warn(
                 "The use of config as argument has been deprecated, "
                 "use `**config.model_dump()` instead",
-                DeprecationWarning,
+                # DeprecationWarning,
             )
             config = kwargs["config"]
         else:
-            kwargs.update(Global.tracker_params)
             config = TrackerConfig.model_validate(kwargs)
 
         self.config = config
@@ -538,6 +538,9 @@ class BaseTracker:
     def __del__(self):
         self._log_file.close()
         return
+
+    def list_checkpoints(self):
+        return list_checkpoints(self.log_dir)
 
     def load(self, checkpoint_dict: dict):
         raise NotImplementedError

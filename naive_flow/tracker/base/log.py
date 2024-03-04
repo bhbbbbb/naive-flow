@@ -12,6 +12,10 @@ class Global:
     tracker_params = {}
 
 
+def get_global():
+    return Global.tracker_params
+
+
 def set_global(
     progress: Literal["none", "tqdm", "plain"] = None,
     verbose: bool = None,

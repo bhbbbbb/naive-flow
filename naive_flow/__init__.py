@@ -1,5 +1,5 @@
 from .config.utils import strfconfig, dump_config, load_env_file
-from .tracker.base.log import set_global
+from .tracker.base.log import set_global, get_global
 from . import tracker
 
 

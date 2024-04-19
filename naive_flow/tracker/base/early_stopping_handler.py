@@ -1,3 +1,4 @@
+import numpy as np
 from tqdm import tqdm
 from .metrics import MetricsLike
 from .log import StdoutLogFile
@@ -47,8 +48,10 @@ class EarlyStoppingHandler:
 
     def update(self, name: str, new_criterion: MetricsLike, epoch: int):
 
-        if self.best_criterion is not None and not new_criterion.better_than(
-            self.best_criterion
+        if (
+            self.best_criterion is not None
+            and not np.isnan(self.best_criterion.value)
+            and not new_criterion.better_than(self.best_criterion)
         ):
             self.counter += 1
             if self.pbar is not None:

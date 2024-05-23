@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="naive-flow",
-    version="0.3.11",
+    version="0.3.12",
     packages=find_packages(),
     license="MIT",
     description=

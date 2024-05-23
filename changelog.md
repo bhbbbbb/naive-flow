@@ -1,5 +1,8 @@
 # Change Log
 
+### 0.3.12
+    - Fix issue when metric is nan, best metric (which is nan) cannot be updated.
+
 ### 0.3.11
     - Add `list_checkpoints` method to BaseTracker
 

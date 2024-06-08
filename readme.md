@@ -7,7 +7,10 @@ NaiveFlow, a lightweight and unobtructive higher level framework based on Pytorc
 
 ## Why NaiveFlow
 
-TODO
+NaiveFlow follows a philosophy similar to that of TensorBoard's SummaryWriter, allowing for easy integration into your code without affecting the original framework.
+
+The `SimpleTracker` takes a PyTorch model (`torch.nn.Module`), an optimizer, and an optional scheduler as inputs, saving and loading them in an elegant manner.
+
 
 ## Install
 

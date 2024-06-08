@@ -101,7 +101,12 @@ def main():
     tracker = nf.tracker.SimpleTracker(
         model,
         optimizer,
+        scheduler,
         **dict(tracker_config),
+        # from_checkpoint=nf.tracker.checkpoint.parse_args(),
+        # from_checkpoint=nf.checkpoint.new_training(),
+        # from_checkpoint='path/to/checkpoint',
+        # from_checkpoint=nf.checkpoint.load_best(..., ...),
     )
 
     writer = SummaryWriter(

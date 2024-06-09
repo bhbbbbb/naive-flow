@@ -5,13 +5,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class TrackerConfig(BaseSettings):
+    """Configuration for tracker"""
 
     model_config = SettingsConfigDict(
         frozen=True,
         validate_assignment=True,
+        use_attribute_docstrings=True,
     )
 
-    log_root_dir: Union[Literal[False], str] = "runs"
+    log_root_dir: Union[Literal[False], str] = Field("runs")
     """
     `log_root_dir` for logs
 
@@ -92,7 +94,13 @@ class TrackerConfig(BaseSettings):
 
     verbose: bool = True
 
-    progress: Literal["plain", "tqdm", "none"] = "tqdm"
+    progress: Literal["plain", "tqdm", "none"] = Field("tqdm")
+    """Way to show the training progress.
+
+    1. tqdm: the progress shown in tqdm-style.
+    2. plain: the progress shown in plain text.
+    3. none: disable the progress. (Note that you may need to also set verbose=False to be fully silent)
+    """
 
     @field_validator("log_root_dir", mode="before")
     @classmethod

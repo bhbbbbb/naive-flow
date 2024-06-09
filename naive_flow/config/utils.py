@@ -1,8 +1,10 @@
+import warnings
+import re
 import os
 from typing import Literal
 import json
 from io import StringIO
-from pydantic import Field
+from pydantic import Field, version
 from pydantic_settings import BaseSettings, DotEnvSettingsSource
 
 
@@ -12,10 +14,41 @@ def strfconfig(
     exclude_none: bool = True,
     padding_len: int = 4,
     min_len: int = 16,
+    description: Literal["inline", "full"] | None = None,
 ):
+    """format the config as string
+
+    Args:
+        config (BaseSettings): the config to format
+        strformat (Literal[&quot;env&quot;, &quot;markdown&quot;], optional): "env" or "markdown".
+            Defaults to "env".
+        exclude_none (bool, optional): arg. passed to setting.model_dump(exclude_none=exclude_none).
+            Defaults to True.
+        padding_len (int, optional): Number of spaces padded after the longest field. Defaults to 4.
+        min_len (int, optional): minimum length of fields. Defaults to 16.
+        description (Literal[&#39;inline&#39;, &#39;full&#39;] | None, optional): whether includes
+            description of fields as comments.
+            If description=inline, the description will be added after value.
+            If description=full, the description will be inserted in the next line following
+                the key value pair.
+            Defaults to None.
+
+    Returns:
+        str: formatted config.
+    """
+    if description is not None and float(version.version_short()) < 2.7:
+        warnings.warn(
+            'Your version of pydantic is before 2.7, '
+            'which does not take docstrings of fields as description.'
+        )
 
     sio = StringIO()
     print(f"## {config.__class__.__name__}", file=sio)
+    if config.__class__.__doc__ is not None:
+        header_doc = "\n".join(
+            f"# {line}" for line in config.__class__.__doc__.split("\n")
+        )
+        print(header_doc, file=sio)
     if strformat == "markdown":
         print("```env", file=sio)
 
@@ -31,17 +64,27 @@ def strfconfig(
                 yield from walk_config(new_prefix, setting)
 
             else:
-                yield f"{prefix}{field}", data
+                yield f"{prefix}{field}", (
+                    data, config.model_fields[field].description
+                )
 
     field_value_pairs = list(walk_config("", config))
     longest_field, _ = max(field_value_pairs, key=lambda p: len(p[0]))
 
     indent = max(padding_len + len(longest_field), min_len)
 
-    for field, value in field_value_pairs:
+    for field, (value, desp) in field_value_pairs:
         if isinstance(value, (dict, list)):
             value = json.dumps(value)
-        sio.write(f"{field:{indent}}= {value}\n")
+        sio.write(f"{field:{indent}}= {value}")
+        if description == 'inline':
+            if desp is not None:
+                sio.write(" # " + re.sub(r"\s+", " ", desp))
+        elif description == 'full':
+            if desp is not None:
+                desp = "\n".join(f"# {line}" for line in desp.split("\n"))
+                sio.write(f"\n{desp}\n")
+        sio.write(f"\n")
 
     if strformat == "markdown":
         print("```", file=sio)
@@ -88,6 +131,25 @@ def load_env_file(
     env_nested_delimiter: str = "__",
     explode_env_files: bool = True,
 ) -> dict[str, str]:
+    """Load an extended-version dot-env file.
+
+    There are following extensions:
+    1. Allow env-file inheritance by taking `_env_file=path/to/env/file/`
+    2. Allow the use of `__file__` to set the relative path for the file `_env_file`.
+        - E.g. `_env_file=__file__/../rel/path/to/env/file/`
+
+    Args:
+        env_path (str): path to the dot-env file
+        env_nested_delimiter (str, optional): Delimiter. Defaults to "__".
+        explode_env_files (bool, optional): whether explode all nested _env_file fields.
+            Defaults to True.
+
+    Returns:
+        dict[str, str]: data in strings. Can then be used as
+        >>> env_data = nf.load_env_file(path)
+        >>> config = Config.model_validate_strings(env_data)
+
+    """
 
     assert os.path.isfile(env_path), f"No env file found at {env_path}"
 

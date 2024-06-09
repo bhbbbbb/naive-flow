@@ -1,5 +1,8 @@
 # Change Log
 
+### 0.3.13
+    - User is allowed `nf.strfconfig(config, description='full')` to include the descriptions.
+
 ### 0.3.12
     - Fix issue when metric is nan, best metric (which is nan) cannot be updated.
 

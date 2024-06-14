@@ -38,8 +38,8 @@ def strfconfig(
     """
     if description is not None and float(version.version_short()) < 2.7:
         warnings.warn(
-            'Your version of pydantic is before 2.7, '
-            'which does not take docstrings of fields as description.'
+            "Your version of pydantic is before 2.7, "
+            "which does not take docstrings of fields as description."
         )
 
     sio = StringIO()
@@ -84,7 +84,7 @@ def strfconfig(
             if desp is not None:
                 desp = "\n".join(f"# {line}" for line in desp.split("\n"))
                 sio.write(f"\n{desp}\n")
-        sio.write(f"\n")
+        sio.write("\n")
 
     if strformat == "markdown":
         print("```", file=sio)
@@ -103,6 +103,8 @@ def dump_config(
     exclude_none: bool = True,
     padding_len: int = 4,
     min_len: int = 16,
+    description: Literal["inline", "full"] | None = None,
+    **kwargs,
 ):
 
     with open(file_path, "w", encoding="utf8") as fout:
@@ -114,6 +116,8 @@ def dump_config(
                     exclude_none=exclude_none,
                     padding_len=padding_len,
                     min_len=min_len,
+                    description=description,
+                    **kwargs,
                 ),
                 file=fout,
             )

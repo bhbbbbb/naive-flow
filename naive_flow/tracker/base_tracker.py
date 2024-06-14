@@ -550,7 +550,7 @@ class BaseTracker:
 
 
 def formatted_now():
-    return datetime.now().strftime(r"%b%d_%H-%M-%S")
+    return datetime.now().strftime(r"%y%m%d_%H-%M-%S")
 
 
 def new_time_formatted_log_dir(

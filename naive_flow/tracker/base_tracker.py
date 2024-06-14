@@ -536,7 +536,8 @@ class BaseTracker:
         return name
 
     def __del__(self):
-        self._log_file.close()
+        if hasattr(self, "_log_file"):
+            self._log_file.close()
         return
 
     def list_checkpoints(self):

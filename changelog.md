@@ -1,6 +1,7 @@
 # Change Log
 
 ### 0.3.13
+    - Checkpoint format has changed.
     - User is allowed `nf.strfconfig(config, description='full')` to include the descriptions.
         - as well as `nf.dump_config(..., description='inline')`
     - `nf.tracker.get_args()` now throw error if the `arg_parser` has not been initialized.

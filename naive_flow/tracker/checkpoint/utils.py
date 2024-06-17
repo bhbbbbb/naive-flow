@@ -1,9 +1,44 @@
+from typing import NamedTuple
 import re
 import os
 from datetime import datetime
 
+LOG_DIR_PATTERN = re.compile(r"(\d{6}_\d{2}-\d{2}-\d{2})_(.*)")
+TIME_FORMAT = r"%y%m%d_%H-%M-%S"
+CHECKPOINT_PATTERN = re.compile(r"(.*?)_?epoch[_\-](\d+)(.*)")
 
-def get_latest_time_formatted_dir(log_root_dir: str):
+
+class LogDirParseResult(NamedTuple):
+    time: datetime
+    info: str
+
+
+def parse_log_dir(log_dir_name: str):
+    match = re.match(LOG_DIR_PATTERN, log_dir_name)
+    if match is None:
+        return None
+
+    time_str = match.group(1)
+    info = match.group(2)
+    return LogDirParseResult(datetime.strptime(time_str, TIME_FORMAT), info)
+
+
+class CheckpointParseResult(NamedTuple):
+    time: str
+    epoch: int
+    suffix: str
+
+
+def parse_checkpoint_name(checkpoint_name: str):
+    match = re.match(CHECKPOINT_PATTERN, checkpoint_name)
+    if match is None:
+        return None
+    return CheckpointParseResult(
+        match.group(1), int(match.group(2)), match.group(3)
+    )
+
+
+def get_latest_log_dir(log_root_dir: str):
     """
     Structure of log_root_dir:
         └──log_root_dir
@@ -15,21 +50,19 @@ def get_latest_time_formatted_dir(log_root_dir: str):
                    20220517T01-44-31_epoch_10
                    20220517T01-44-41_epoch_20
     """
-    TIME_FORMAT_PATTERN = r"\d{6}_\d{2}-\d{2}-\d{2}"
-    TIME_FORMAT = r"%y%m%d_%H-%M-%S"
 
     def get_dir_datetime(name: str) -> datetime:
         """check whether a name of dir is contains formatted time
         """
-        match = re.search(TIME_FORMAT_PATTERN, name)
-        if not match:
+        result = parse_log_dir(name)
+        if result is None:
             return None
 
         path = os.path.join(log_root_dir, name)
         if not os.path.isdir(path):
             return None
 
-        return datetime.strptime(match.group(0), TIME_FORMAT)
+        return result.time
 
     arr = [
         (dir_name, get_dir_datetime(dir_name))
@@ -45,26 +78,31 @@ def get_latest_time_formatted_dir(log_root_dir: str):
     return latest_dir
 
 
-def list_checkpoints(log_dir: str):
-    # TODO: filiter using comment
+def list_checkpoints(log_dir: str, comment_filter: str | None = None):
+    """List the checkpoint within `log_dir`.
 
-    PATTERN = r"_epoch_(\d+)"
+    Args:
+        log_dir (str): log dir
+        comment_filter (str, optional): filter to the comment (suffix) of checkpoints
+    """
 
     def unorder_list():
         for name in os.listdir(log_dir):
 
-            if not os.path.isfile(os.path.join(log_dir, name)):
+            result = parse_checkpoint_name(name)
+            if result is None:
                 continue
 
-            match = re.search(PATTERN, name)
-            if match is None:
-                continue
-
-            yield (int(match.group(1)), name)
+            yield (result, name)
 
     checkpoints_list = list(unorder_list())
-    checkpoints_list.sort(key=lambda t: t[0])
+    checkpoints_list.sort(key=lambda t: t[0].epoch)
 
+    if comment_filter is not None:
+        return [
+            name for parse_result, name in checkpoints_list
+            if re.search(comment_filter, parse_result.suffix) is not None
+        ]
     return [name for _, name in checkpoints_list]
 
 
@@ -77,12 +115,3 @@ def list_checkpoints_later_than(checkpoint_path: str):
     idx = checkpoint_list.index(checkpoint_name)
 
     return checkpoint_list[idx + 1:]
-
-
-def get_latest_log_dir(log_root_dir: str):
-    log_dir = get_latest_time_formatted_dir(log_root_dir)
-    if log_dir is None:
-        raise ValueError(
-            f"Cannot find any log_dir in the log_root_dir: {log_root_dir}"
-        )
-    return log_dir

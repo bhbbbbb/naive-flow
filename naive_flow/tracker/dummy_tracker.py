@@ -133,7 +133,7 @@ class DummyTracker(BaseTracker):
 
     def get_best_scalars(self, no_within_loop_warning: bool = False):
         assert no_within_loop_warning is False
-        cached_scalar = self._scalar_cache.get_cache_scalars(0)
+        cached_scalar = self._scalar_cache.get_cached_scalars(0)
         return cached_scalar
 
     @overload

@@ -136,8 +136,9 @@ class SimpleTracker(BaseTracker):
     def load(self, checkpoint_dict: dict):
 
         self.model.load_state_dict(checkpoint_dict['model'])
-        self.optimizer.load_state_dict(checkpoint_dict['optimizer'])
-        if self.scheduler is not None:
+        if 'optimizer' in checkpoint_dict:
+            self.optimizer.load_state_dict(checkpoint_dict['optimizer'])
+        if self.scheduler is not None and 'scheduler' in checkpoint_dict:
             self.scheduler.load_state_dict(checkpoint_dict['scheduler'])
 
         return

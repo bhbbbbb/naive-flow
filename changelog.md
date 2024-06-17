@@ -2,6 +2,9 @@
 
 ### 0.3.13
     - User is allowed `nf.strfconfig(config, description='full')` to include the descriptions.
+        - as well as `nf.dump_config(..., description='inline')`
+    - `nf.tracker.get_args()` now throw error if the `arg_parser` has not been initialized.
+        - This results that the `nf.tracker.checkpoint.parse_args()` returns `None` if the `arg_parser` not initialized.
 
 ### 0.3.12
     - Fix issue when metric is nan, best metric (which is nan) cannot be updated.

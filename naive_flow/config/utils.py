@@ -36,7 +36,7 @@ def strfconfig(
     Returns:
         str: formatted config.
     """
-    if description is not None and float(version.version_short()) < 2.7:
+    if description is not None and float(version.version_short()) < 2.7:  #pylint: disable=no-member
         warnings.warn(
             "Your version of pydantic is before 2.7, "
             "which does not take docstrings of fields as description."
@@ -77,10 +77,10 @@ def strfconfig(
         if isinstance(value, (dict, list)):
             value = json.dumps(value)
         sio.write(f"{field:{indent}}= {value}")
-        if description == 'inline':
+        if description == "inline":
             if desp is not None:
                 sio.write(" # " + re.sub(r"\s+", " ", desp))
-        elif description == 'full':
+        elif description == "full":
             if desp is not None:
                 desp = "\n".join(f"# {line}" for line in desp.split("\n"))
                 sio.write(f"\n{desp}\n")

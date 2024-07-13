@@ -1,11 +1,15 @@
 import warnings
+from contextlib import contextmanager
 import re
 import os
 from typing import Literal
 import json
 from io import StringIO
+
+from dotenv import dotenv_values
 from pydantic import Field, version
-from pydantic_settings import BaseSettings, DotEnvSettingsSource
+from pydantic_settings import BaseSettings, DotEnvSettingsSource, sources
+from pydantic_settings.sources import parse_env_vars
 
 
 def strfconfig(
@@ -15,6 +19,7 @@ def strfconfig(
     padding_len: int = 4,
     min_len: int = 16,
     description: Literal["inline", "full"] | None = None,
+    **kwargs,
 ):
     """format the config as string
 
@@ -32,6 +37,7 @@ def strfconfig(
             If description=full, the description will be inserted in the next line following
                 the key value pair.
             Defaults to None.
+        kwargs: kwargs pass to config.model_dump(**kwargs)
 
     Returns:
         str: formatted config.
@@ -54,8 +60,9 @@ def strfconfig(
 
     def walk_config(prefix: str, config: BaseSettings):
 
-        for field, data in config.model_dump(exclude_none=exclude_none
-                                             ).items():
+        for field, data in config.model_dump(
+            exclude_none=exclude_none, **kwargs
+        ).items():
             delimiter = config.model_config.get("env_nested_delimiter")
             if isinstance(
                 setting := getattr(config, field), BaseSettings
@@ -124,9 +131,45 @@ def dump_config(
 
         else:
             print(
-                config.model_dump_json(exclude_none=exclude_none),
+                config.model_dump_json(exclude_none=exclude_none, **kwargs),
                 file=fout,
             )
+    return
+
+
+@contextmanager
+def add_system_vars(system_vars: dict[str, str] | None):
+
+    def read_env_file(
+        file_path,
+        *,
+        encoding: str | None = None,
+        case_sensitive: bool = False,
+        ignore_empty: bool = False,
+        parse_none_str: str | None = None,
+    ):
+        with StringIO() as stream:
+            for k, v in system_vars.items():
+                print(f"{k}={v}", file=stream)
+            with open(file_path, encoding=encoding) as fin:
+                stream.write(fin.read())
+            stream.seek(0)
+            file_vars = dotenv_values(
+                stream=stream, encoding=encoding or "utf8"
+            )
+        for k in system_vars:
+            file_vars.pop(k)
+        return parse_env_vars(
+            file_vars, case_sensitive, ignore_empty, parse_none_str
+        )
+
+    original_fn = sources.read_env_file
+    if system_vars:
+        sources.read_env_file = read_env_file
+    try:
+        yield
+    finally:
+        sources.read_env_file = original_fn
     return
 
 
@@ -134,23 +177,23 @@ def load_env_file(
     env_path: str,
     env_nested_delimiter: str = "__",
     explode_env_files: bool = True,
+    preset_env_vars: dict[str, str] = None,
 ) -> dict[str, str]:
-    """Load an extended-version dot-env file.
-
-    There are following extensions:
-    1. Allow env-file inheritance by taking `_env_file=path/to/env/file/`
-    2. Allow the use of `__file__` to set the relative path for the file `_env_file`.
-        - E.g. `_env_file=__file__/../rel/path/to/env/file/`
+    """Load an extended-version dot-env file. This allows env-file inheritance by
+        taking `_env_file=path/to/env/file/`
 
     Args:
         env_path (str): path to the dot-env file
         env_nested_delimiter (str, optional): Delimiter. Defaults to "__".
         explode_env_files (bool, optional): whether explode all nested _env_file fields.
             Defaults to True.
+        preset_env_vars (dict[str, str], optional): Preset the env key-value pairs for 
+            dotenv parsing. For example, one can set preset_env_vars={'__file__': env_path}
+            to use relative path in the dot-env. 
 
     Returns:
         dict[str, str]: data in strings. Can then be used as
-        >>> env_data = nf.load_env_file(path)
+        >>> env_data = nf.load_env_file(path, preset_env_vars={'__file__': path})
         >>> config = Config.model_validate_strings(env_data)
 
     """
@@ -158,18 +201,20 @@ def load_env_file(
     assert os.path.isfile(env_path), f"No env file found at {env_path}"
 
     def load(env_file: str):
-        src = DotEnvSettingsSource(
-            BaseSettings,
-            env_file,
-            env_nested_delimiter=env_nested_delimiter,
-        )
-        env_vars = src._load_env_vars()  # pylint: disable=protected-access
-        for key in env_vars:
-            tem = key.split(env_nested_delimiter, maxsplit=1)
-            if len(tem) >= 2 and tem[0].strip():
-                yield tem[0], src.explode_env_vars(tem[0], Field(), env_vars)
-            else:
-                yield tem[0], src.get_field_value(Field(), tem[0])[0]
+        with add_system_vars(preset_env_vars):
+            src = DotEnvSettingsSource(
+                BaseSettings,
+                env_file,
+                env_nested_delimiter=env_nested_delimiter,
+            )
+            for key in src.env_vars:
+                tem = key.split(env_nested_delimiter, maxsplit=1)
+                if len(tem) >= 2 and tem[0].strip():
+                    yield tem[0], src.explode_env_vars(
+                        tem[0], Field(), src.env_vars
+                    )
+                else:
+                    yield tem[0], src.get_field_value(Field(), tem[0])[0]
 
     def resolve_env_path(d: dict[str, str], env_path):
 
@@ -177,7 +222,12 @@ def load_env_file(
             if isinstance(v, dict):
                 yield k, dict(resolve_env_path(v, env_path))
             elif k == "_env_file":
-                v = v.replace("__file__", env_path)
+                if "__file__" in env_path:
+                    warnings.warn(
+                        "Using __file__ has deprecated. "
+                        "Consider __file__ a variable and use ${__file__} instead"
+                    )
+                    v = v.replace("__file__", env_path)
                 v = os.path.abspath(v)
                 assert os.path.isfile(v), f"{v} does not exist"
                 if explode_env_files:

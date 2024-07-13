@@ -222,7 +222,7 @@ def load_env_file(
             if isinstance(v, dict):
                 yield k, dict(resolve_env_path(v, env_path))
             elif k == "_env_file":
-                if "__file__" in env_path:
+                if "__file__" in v:
                     warnings.warn(
                         "Using __file__ has deprecated. "
                         "Consider __file__ a variable and use ${__file__} instead"

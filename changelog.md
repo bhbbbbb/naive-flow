@@ -6,6 +6,7 @@
         - as well as `nf.dump_config(..., description='inline')`
     - `nf.tracker.get_args()` now throw error if the `arg_parser` has not been initialized.
         - This results that the `nf.tracker.checkpoint.parse_args()` returns `None` if the `arg_parser` not initialized.
+    - make lazy loading tensorboard
 
 ### 0.3.12
     - Fix issue when metric is nan, best metric (which is nan) cannot be updated.

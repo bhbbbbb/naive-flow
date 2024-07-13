@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import glob
 import shutil
@@ -7,13 +8,11 @@ from datetime import datetime
 from fnmatch import fnmatch
 from typing import (
     Union, Tuple, TypedDict, Type, List, Callable, overload, NamedTuple, Dict,
-    Any, Literal
+    Any, Literal, TYPE_CHECKING
 )
 from functools import wraps
 
 import torch
-from torch.utils.tensorboard import SummaryWriter
-
 import termcolor
 
 from .tracker_config import TrackerConfig
@@ -25,6 +24,9 @@ from .base.log import StdoutLogFile, std_out_err_redirect_tqdm, RangeTqdm, Scala
 from .base.metrics import MetricsLike, BUILTIN_METRICS, BUILTIN_TYPES
 from .base.early_stopping_handler import EarlyStoppingHandler
 from .base.history import CheckpointState, SaveReason
+
+if TYPE_CHECKING:
+    from torch.utils.tensorboard import SummaryWriter
 
 __all__ = ["BaseTracker"]
 
@@ -228,7 +230,7 @@ class BaseTracker:
         assert self._writer is None, (
             "Try to create a new summary writer while there is one writer that has been registered"
         )
-        writer = SummaryWriter(
+        writer = SummaryWriter( #pylint: disable=used-before-assignment
             log_dir=self.log_dir,
             purge_step=self.start_epoch,
             max_queue=max_queue,
@@ -299,11 +301,12 @@ class BaseTracker:
 
                 if self._evaluated is False:
                     if self.config.early_stopping_rounds > 0:
-                        warnings.warn(
-                            "EarlyStoppingWarning:\n"
-                            "Early stopping is enable while no criterion scalar has been added.\n"
-                            "TODO: provide ways to suppress this warning\n"  #TODO
-                        )
+                        pass
+                        # warnings.warn(
+                        #     "EarlyStoppingWarning:\n"
+                        #     "Early stopping is enable while no criterion scalar has been added.\n"
+                        #     "TODO: provide ways to suppress this warning\n"  #TODO
+                        # )
 
                 save_reason = SaveReason()
 
@@ -382,7 +385,8 @@ class BaseTracker:
             # called within training loop
             if not self._evaluated:
                 # called before  for-earlystopping scalar added
-                return self._best_scalars
+                # return self._best_scalars
+                pass
 
             if no_within_loop_warning is False:
                 warnings.warn(
@@ -435,6 +439,12 @@ class BaseTracker:
     ):
         if global_step is None:
             global_step = self._cur_epoch or 0
+        else:
+            if global_step > self._cur_epoch:
+                warnings.warn(
+                    f"A scalar {tag} is being added for epoch={global_step}, while the current "
+                    f"epoch is {self._cur_epoch}"
+                )
 
         def handle_tag():
             tem = tag.split("/", maxsplit=1)

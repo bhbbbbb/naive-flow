@@ -1,4 +1,3 @@
-from functools import lru_cache
 from typing import Union, Literal
 from argparse import ArgumentParser, Namespace
 
@@ -10,8 +9,10 @@ class Args(Namespace):
     log_dir: Union[str, None]
 
 
-@lru_cache(maxsize=1)
 def get_default_arg_parser() -> ArgumentParser:
+
+    if hasattr(get_default_arg_parser, "arg_parser"):
+        return get_default_arg_parser.arg_parser
 
     arg_parser = ArgumentParser(
         "tracker",
@@ -20,6 +21,7 @@ def get_default_arg_parser() -> ArgumentParser:
             "load from existing checkpoint"
         ),
     )
+    get_default_arg_parser.arg_parser = arg_parser
 
     # arg_parser.add_argument(
     #     "-e", "--to-epoch",
@@ -87,6 +89,15 @@ def use_default_arg_parser():
     return
 
 
+def default_arg_parser_is_used():
+    return hasattr(get_default_arg_parser, "arg_parser")
+
+
 def get_args() -> Args:
-    args = get_default_arg_parser().parse_args()
-    return args
+    arg_parser = getattr(get_default_arg_parser, "arg_parser", None)
+    if arg_parser is not None:
+        return arg_parser.parse_args()
+    raise RuntimeError(
+        "get_args while the arg_parser has not been initialized. "
+        "Use `nf.tracker.get_default_arg_parser()` to get the default arg_parser for trackers"
+    )

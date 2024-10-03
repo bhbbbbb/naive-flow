@@ -71,8 +71,10 @@ def strfconfig(
                 yield from walk_config(new_prefix, setting)
 
             else:
+                # extra fields would not have info
+                field_info = config.model_fields.get(field, None)
                 yield f"{prefix}{field}", (
-                    data, config.model_fields[field].description
+                    data, getattr(field_info, "description", "")
                 )
 
     field_value_pairs = list(walk_config("", config))

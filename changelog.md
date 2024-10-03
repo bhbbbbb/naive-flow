@@ -1,5 +1,8 @@
 # Change Log
 
+### 0.3.14
+    - Fix a bug while extra field is set, which cause `nf.strfconfig` fail
+
 ### 0.3.13
     - Checkpoint format has changed.
     - User is allowed `nf.strfconfig(config, description='full')` to include the descriptions.

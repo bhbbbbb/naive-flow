@@ -1,8 +1,13 @@
+from typing_extensions import deprecated
 from .config.utils import strfconfig, dump_config, load_env_file
 from .tracker.base.log import set_global, get_global
 from . import tracker
 
 
+@deprecated(
+    "naive_flow.load_checkpoint has been deprecated for the new checkpoint format, "
+    "as user can load the .pth in the checkpoint directory directly."
+)
 def load_checkpoint(checkpoint_path: str):
     # pylint: disable=import-outside-toplevel
     """Load the specific checkpoint save by Tracker"""

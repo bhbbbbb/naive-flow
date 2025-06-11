@@ -172,7 +172,6 @@ def add_system_vars(system_vars: dict[str, str] | None):
         )
 
     # Use in pydantic-settings>=2.4.0
-    @staticmethod
     def _static_read_env_file(
         file_path,
         *,
@@ -203,14 +202,18 @@ def add_system_vars(system_vars: dict[str, str] | None):
         if original_read_env_file is not None:
             sources.read_env_file = read_env_file
         if original_static_read_env_file is not None:
-            sources.DotEnvSettingsSource._static_read_env_file = _static_read_env_file
+            sources.DotEnvSettingsSource._static_read_env_file = staticmethod(
+                _static_read_env_file
+            )
     try:
         yield
     finally:
         if original_read_env_file is not None:
             sources.read_env_file = original_read_env_file
         if original_static_read_env_file is not None:
-            sources.DotEnvSettingsSource._static_read_env_file = original_static_read_env_file
+            sources.DotEnvSettingsSource._static_read_env_file = staticmethod(
+                original_static_read_env_file
+            )
     return
 
 

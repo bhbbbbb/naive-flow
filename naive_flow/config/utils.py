@@ -249,7 +249,7 @@ def load_env_file(
                 env_nested_delimiter=env_nested_delimiter,
             )
             for key in src.env_vars:
-                if key in preset_env_vars:
+                if preset_env_vars is not None and key in preset_env_vars:
                     continue
                 tem = key.split(env_nested_delimiter, maxsplit=1)
                 if len(tem) >= 2 and tem[0].strip():

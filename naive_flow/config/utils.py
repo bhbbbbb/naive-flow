@@ -1,15 +1,24 @@
+import json
+import os
+import re
 import warnings
 from contextlib import contextmanager
-import re
-import os
-from typing import Literal
-import json
 from io import StringIO
+from typing import Literal
 
+import pydantic_settings
 from dotenv import dotenv_values
-from pydantic import Field, version
+from packaging import version
+from pydantic import Field
+from pydantic import version as pydantic_version
 from pydantic_settings import BaseSettings, DotEnvSettingsSource, sources
-from pydantic_settings.sources import parse_env_vars
+
+if version.parse(pydantic_settings.__version__) >= version.parse("2.9"):
+    from pydantic_settings.sources.utils import \
+        parse_env_vars  # pylint: disable=no-name-in-module,import-error
+else:
+    from pydantic_settings.sources import \
+        parse_env_vars  # pylint: disable=no-name-in-module,import-error
 
 
 def strfconfig(
@@ -42,7 +51,9 @@ def strfconfig(
     Returns:
         str: formatted config.
     """
-    if description is not None and float(version.version_short()) < 2.7:  #pylint: disable=no-member
+    if description is not None and float(
+        pydantic_version.version_short()  #pylint: disable=no-member
+    ) < 2.7:
         warnings.warn(
             "Your version of pydantic is before 2.7, "
             "which does not take docstrings of fields as description."
@@ -60,6 +71,9 @@ def strfconfig(
 
     def walk_config(prefix: str, config: BaseSettings):
 
+        json_config = json.loads(
+            config.model_dump_json(exclude_none=exclude_none, **kwargs)
+        )
         for field, data in config.model_dump(
             exclude_none=exclude_none, **kwargs
         ).items():
@@ -74,7 +88,8 @@ def strfconfig(
                 # extra fields would not have info
                 field_info = config.model_fields.get(field, None)
                 yield f"{prefix}{field}", (
-                    data, getattr(field_info, "description", "")
+                    data, json_config[field],
+                    getattr(field_info, "description", "")
                 )
 
     field_value_pairs = list(walk_config("", config))
@@ -82,9 +97,9 @@ def strfconfig(
 
     indent = max(padding_len + len(longest_field), min_len)
 
-    for field, (value, desp) in field_value_pairs:
+    for field, (value, json_value, desp) in field_value_pairs:
         if isinstance(value, (dict, list)):
-            value = json.dumps(value)
+            value = json.dumps(json_value)
         sio.write(f"{field:{indent}}= {value}")
         if description == "inline":
             if desp is not None:
@@ -141,7 +156,9 @@ def dump_config(
 
 @contextmanager
 def add_system_vars(system_vars: dict[str, str] | None):
+    # pylint: disable=protected-access
 
+    # Use in pydantic-settings<2.4.0
     def read_env_file(
         file_path,
         *,
@@ -165,13 +182,49 @@ def add_system_vars(system_vars: dict[str, str] | None):
             file_vars, case_sensitive, ignore_empty, parse_none_str
         )
 
-    original_fn = sources.read_env_file
+    # Use in pydantic-settings>=2.4.0
+    def _static_read_env_file(
+        file_path,
+        *,
+        encoding: str | None = None,
+        case_sensitive: bool = False,
+        ignore_empty: bool = False,
+        parse_none_str: str | None = None,
+    ):
+        with StringIO() as stream:
+            for k, v in system_vars.items():
+                print(f"{k}={v}", file=stream)
+            with open(file_path, encoding=encoding) as fin:
+                stream.write(fin.read())
+            stream.seek(0)
+            file_vars: dict[str, str | None] = dotenv_values(
+                stream=stream, encoding=encoding or "utf8"
+            )
+        return parse_env_vars(
+            file_vars, case_sensitive, ignore_empty, parse_none_str
+        )
+
+    original_read_env_file = getattr(sources, "read_env_file", None)
+    original_static_read_env_file = getattr(
+        sources.DotEnvSettingsSource, "_static_read_env_file", None
+    )
+
     if system_vars:
-        sources.read_env_file = read_env_file
+        if original_read_env_file is not None:
+            sources.read_env_file = read_env_file
+        if original_static_read_env_file is not None:
+            sources.DotEnvSettingsSource._static_read_env_file = staticmethod(
+                _static_read_env_file
+            )
     try:
         yield
     finally:
-        sources.read_env_file = original_fn
+        if original_read_env_file is not None:
+            sources.read_env_file = original_read_env_file
+        if original_static_read_env_file is not None:
+            sources.DotEnvSettingsSource._static_read_env_file = staticmethod(
+                original_static_read_env_file
+            )
     return
 
 
@@ -210,6 +263,8 @@ def load_env_file(
                 env_nested_delimiter=env_nested_delimiter,
             )
             for key in src.env_vars:
+                if preset_env_vars is not None and key in preset_env_vars:
+                    continue
                 tem = key.split(env_nested_delimiter, maxsplit=1)
                 if len(tem) >= 2 and tem[0].strip():
                     yield tem[0], src.explode_env_vars(

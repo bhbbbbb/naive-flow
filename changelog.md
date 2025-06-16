@@ -1,5 +1,10 @@
 # Change Log
 
+### 0.3.15
+    - fix the problem cause by api changed in pydantic-settings==2.9.0
+    - `nf.strfconfig`: now the display value respects custom serializer
+    - `nf.load_env_file`: fix the problem cause by pydantic-settings>=2.4.0
+
 ### 0.3.14
     - Fix a bug while extra field is set, which cause `nf.strfconfig` fail
 

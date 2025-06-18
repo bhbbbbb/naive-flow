@@ -1,11 +1,12 @@
+import contextlib
 import logging
 import os
 import sys
 from typing import Dict, Literal
-import contextlib
-from typing_extensions import deprecated
+
 from tqdm import tqdm
 from tqdm.contrib import DummyTqdmFile
+from typing_extensions import deprecated
 
 
 class Global:
@@ -39,7 +40,11 @@ def set_global(
 
 @contextlib.contextmanager
 def std_out_err_redirect_tqdm():
+    import naive_flow  # pylint: disable=import-outside-toplevel
     orig_out_err = sys.stdout, sys.stderr
+    nf_out_err = naive_flow.stdout, naive_flow.stderr
+    naive_flow.stdout, naive_flow.stderr = orig_out_err
+
     try:
         sys.stdout, sys.stderr = map(DummyTqdmFile, orig_out_err)
         yield orig_out_err[0]
@@ -49,6 +54,7 @@ def std_out_err_redirect_tqdm():
     # Always restore sys.stdout/err if necessary
     finally:
         sys.stdout, sys.stderr = orig_out_err
+        naive_flow.stdout, naive_flow.stderr = nf_out_err
 
 
 class RangeTqdm(tqdm):
@@ -80,17 +86,29 @@ class _ScalarTqdm(tqdm):
         super().__init__(bar_format="{desc}", **kwargs)
         return
 
+    @classmethod
+    def _get_free_pos(cls, instance=None):
+        return max(
+            abs(inst.pos) for inst in cls._instances
+            if inst is not instance and hasattr(inst, "pos")
+        ) + 1
+
 
 class ScalarTqdms:
 
     def __init__(self, **kwargs):
+        self.position = kwargs.pop("position", None)
         self.kwargs = kwargs
         self.tqdms: Dict[str, _ScalarTqdm] = {}
         return
 
     def update(self, tag: str, msg: str):
         if tag not in self.tqdms:
-            self.tqdms[tag] = _ScalarTqdm(**self.kwargs)
+            self.tqdms[tag] = _ScalarTqdm(
+                position=self.position, **self.kwargs
+            )
+            if self.position is not None:
+                self.position += 1
 
         self.tqdms[tag].set_description_str(msg)
         return

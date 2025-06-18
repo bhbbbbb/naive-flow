@@ -1,8 +1,9 @@
 import numpy as np
 from tqdm import tqdm
-from .metrics import MetricsLike
-from .log import StdoutLogFile
+
 from ..tracker_config import TrackerConfig
+from .log import StdoutLogFile
+from .metrics import MetricsLike
 
 _ES_BAR_FORMAT = ("EarlyStoppingCounter: {n_fmt}/{total_fmt}, "
                   "{desc}")
@@ -18,6 +19,13 @@ class EarlyStoppingTqdm(tqdm):
         )
         return
 
+    @classmethod
+    def _get_free_pos(cls, instance=None):
+        return max(
+            abs(inst.pos) for inst in cls._instances
+            if inst is not instance and hasattr(inst, "pos")
+        ) + 1
+
 
 class EarlyStoppingHandler:
 
@@ -25,7 +33,7 @@ class EarlyStoppingHandler:
     counter: int
 
     def __init__(
-        self, log_file: StdoutLogFile, config: TrackerConfig, tqdm_file
+        self, log_file: StdoutLogFile, config: TrackerConfig, **tqdm_kwargs
     ):
         self.best_criterion = None
         self.counter = 0
@@ -36,7 +44,7 @@ class EarlyStoppingHandler:
         self.log_file = log_file
         if config.progress == "tqdm":
             self.pbar = EarlyStoppingTqdm(
-                config.early_stopping_rounds, file=tqdm_file
+                config.early_stopping_rounds, **tqdm_kwargs
             )
         else:
             self.pbar = None

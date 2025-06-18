@@ -1,5 +1,7 @@
 # Change Log
 
+### 0.3.16
+    - support adding additional tqdm by specifying position in BaseTracker.range(..., position=...)
 ### 0.3.15
     - fix the problem cause by api changed in pydantic-settings==2.9.0
     - `nf.strfconfig`: now the display value respects custom serializer

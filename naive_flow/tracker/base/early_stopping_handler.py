@@ -21,10 +21,13 @@ class EarlyStoppingTqdm(tqdm):
 
     @classmethod
     def _get_free_pos(cls, instance=None):
-        return max(
+        instances = [
             abs(inst.pos) for inst in cls._instances
             if inst is not instance and hasattr(inst, "pos")
-        ) + 1
+        ]
+        if instances:
+            return max(instances) + 1
+        return 0
 
 
 class EarlyStoppingHandler:

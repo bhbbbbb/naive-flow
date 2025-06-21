@@ -14,11 +14,15 @@ from pydantic import version as pydantic_version
 from pydantic_settings import BaseSettings, DotEnvSettingsSource, sources
 
 if version.parse(pydantic_settings.__version__) >= version.parse("2.9"):
-    from pydantic_settings.sources.utils import \
-        parse_env_vars  # pylint: disable=no-name-in-module,import-error
+    # pylint: disable=no-name-in-module,import-error
+    from pydantic_settings.sources.utils import (  # pyright: ignore[reportMissingImports]
+        parse_env_vars,
+    )
 else:
-    from pydantic_settings.sources import \
-        parse_env_vars  # pylint: disable=no-name-in-module,import-error
+    # pylint: disable=no-name-in-module,import-error
+    from pydantic_settings.sources import (  # pyright: ignore[reportMissingImports]
+        parse_env_vars,
+    )
 
 
 def strfconfig(
@@ -250,6 +254,9 @@ def load_env_file(
         dict[str, str]: data in strings. Can then be used as
         >>> env_data = nf.load_env_file(path, preset_env_vars={'__file__': path})
         >>> config = Config.model_validate_strings(env_data)
+        
+        Use environ as preset value (Note that user should avoid name collision themselves)
+        >>> env_data = nf.load_env_file(path, preset_env_vars=os.environ)
 
     """
 
@@ -260,6 +267,7 @@ def load_env_file(
             src = DotEnvSettingsSource(
                 BaseSettings,
                 env_file,
+                case_sensitive=True,
                 env_nested_delimiter=env_nested_delimiter,
             )
             for key in src.env_vars:

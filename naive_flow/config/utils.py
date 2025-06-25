@@ -148,12 +148,14 @@ def dump_config(
                     **kwargs,
                 ),
                 file=fout,
+                end="",
             )
 
         else:
             print(
                 config.model_dump_json(exclude_none=exclude_none, **kwargs),
                 file=fout,
+                end="",
             )
     return
 

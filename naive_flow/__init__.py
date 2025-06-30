@@ -1,7 +1,16 @@
+import sys
+
 from typing_extensions import deprecated
-from .config.utils import strfconfig, dump_config, load_env_file
-from .tracker.base.log import set_global, get_global
+
 from . import tracker
+from .config.utils import dump_config, load_env_file, strfconfig
+from .tracker.base.log import get_global, set_global
+
+stdout = sys.stdout
+"""A way to get original stdout which may be redirected to tqdm."""
+
+stderr = sys.stderr
+"""A way to get original stderr which may be redirected to tqdm."""
 
 
 @deprecated(
@@ -11,10 +20,12 @@ from . import tracker
 def load_checkpoint(checkpoint_path: str):
     # pylint: disable=import-outside-toplevel
     """Load the specific checkpoint save by Tracker"""
-    import os
     import glob
-    import torch
+    import os
     from typing import get_type_hints
+
+    import torch
+
     from .tracker.base_tracker import _CheckpointDict
 
     if os.path.isfile(checkpoint_path):

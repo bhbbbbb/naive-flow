@@ -1,29 +1,49 @@
 from __future__ import annotations
-import os
+
 import glob
+import os
 import shutil
-import warnings
 import socket
+import warnings
 from datetime import datetime
 from fnmatch import fnmatch
-from typing import (
-    Union, Tuple, TypedDict, Type, List, Callable, overload, NamedTuple, Dict,
-    Any, Literal, TYPE_CHECKING
-)
 from functools import wraps
-
-import torch
-import termcolor
-
-from .tracker_config import TrackerConfig
-from .checkpoint.utils import (
-    list_checkpoints_later_than, list_checkpoints, TIME_FORMAT,
-    parse_checkpoint_name
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Literal,
+    NamedTuple,
+    Tuple,
+    Type,
+    TypedDict,
+    Union,
+    overload,
 )
-from .base.log import StdoutLogFile, std_out_err_redirect_tqdm, RangeTqdm, ScalarTqdms, Global
-from .base.metrics import MetricsLike, BUILTIN_METRICS, BUILTIN_TYPES
+
+import termcolor
+import torch
+
 from .base.early_stopping_handler import EarlyStoppingHandler
 from .base.history import CheckpointState, SaveReason
+from .base.log import (
+    Global,
+    RangeTqdm,
+    ScalarTqdms,
+    StdoutLogFile,
+    std_out_err_redirect_tqdm,
+)
+from .base.metrics import BUILTIN_METRICS, BUILTIN_TYPES, MetricsLike
+from .checkpoint.utils import (
+    TIME_FORMAT,
+    list_checkpoints,
+    list_checkpoints_later_than,
+    parse_checkpoint_name,
+)
+from .tracker_config import TrackerConfig
 
 if TYPE_CHECKING:
     from torch.utils.tensorboard import SummaryWriter
@@ -262,28 +282,47 @@ class BaseTracker:
             self._metrics.append(_Scalar.from_arg(tag, scalar_type))
         return
 
-    def range(self, to_epoch: int):
+    def range(self, to_epoch: int, position: int | list[int] | None = None):
+        """
+        Args:
+            to_epoch (int): Target epoch.
+            position (int | list[int] | None, optional): position passed to tqdm. Defaults to None.
+                The multiple positions specified, they will be spread to 
+                Main bar, early-stopping-counter, scalars, respectively.
+        """
 
         if to_epoch <= self.start_epoch:
             raise ValueError(
                 f"expect to_epoch > {self.start_epoch}, got: to_epoch={to_epoch}"
             )
 
+        positions = dict(
+            enumerate(
+                position if isinstance(position, Iterable) else [position]
+            )
+        )
+
         with std_out_err_redirect_tqdm() as orig_stdout:
             pbar = RangeTqdm(
                 self.start_epoch,
                 to_epoch,
+                leave=True,
+                position=positions.get(0, None),
                 file=orig_stdout,
+                dynamic_ncols=True,
                 disable=(self.config.progress != "tqdm"),
             )
             self._es_handler = EarlyStoppingHandler(
                 self._log_file,
                 self.config,
-                tqdm_file=orig_stdout,
+                file=orig_stdout,
+                position=positions.get(1, None),
             )
             if self.config.progress != "plain":
                 self._scalar_tqdms = ScalarTqdms(
-                    file=orig_stdout, disable=self.config.progress != "tqdm"
+                    file=orig_stdout,
+                    disable=self.config.progress != "tqdm",
+                    position=positions.get(2, None),
                 )
             for epoch in pbar:
 

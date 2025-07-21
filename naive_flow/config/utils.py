@@ -6,11 +6,11 @@ from contextlib import contextmanager
 from io import StringIO
 from typing import Literal
 
+import pydantic
 import pydantic_settings
 from dotenv import dotenv_values
 from packaging import version
 from pydantic import Field
-from pydantic import version as pydantic_version
 from pydantic_settings import BaseSettings, DotEnvSettingsSource, sources
 
 if version.parse(pydantic_settings.__version__) >= version.parse("2.9"):
@@ -55,9 +55,11 @@ def strfconfig(
     Returns:
         str: formatted config.
     """
-    if description is not None and float(
-        pydantic_version.version_short()  #pylint: disable=no-member
-    ) < 2.7:
+
+    if (
+        description is not None
+        and version.parse(pydantic.__version__) < version.parse("2.7")
+    ):
         warnings.warn(
             "Your version of pydantic is before 2.7, "
             "which does not take docstrings of fields as description."

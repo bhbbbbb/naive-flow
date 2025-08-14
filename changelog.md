@@ -1,5 +1,7 @@
 # Change Log
 
+### 0.3.17
+    - allow access to pbar via member tracker.pbar within BaseTracker.range(...) loop.
 ### 0.3.16
     - support adding additional tqdm by specifying position in BaseTracker.range(..., position=...)
 ### 0.3.15

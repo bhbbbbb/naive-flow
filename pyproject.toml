@@ -24,7 +24,7 @@ dependencies = [
     "pydantic-settings >= 2.0",
     "termcolor",
 ]
-version = "0.3.16"
+version = "0.3.17"
 
 [project.urls]
 Homepage = "https://github.com/bhbbbbb/naive-flow"

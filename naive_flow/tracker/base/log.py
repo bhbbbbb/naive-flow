@@ -34,8 +34,18 @@ def set_global(
         if log_root_dir is not None:
             yield ("log_root_dir", log_root_dir)
 
-    Global.tracker_params = dict(gen())
+    Global.tracker_params.update(dict(gen()))
     return
+
+
+@contextlib.contextmanager
+def global_params(**kwargs):
+    old_kwargs = get_global()
+    set_global(**kwargs)
+    try:
+        yield
+    finally:
+        set_global(**old_kwargs)
 
 
 @contextlib.contextmanager

@@ -166,6 +166,7 @@ class BaseTracker:
         self._scalar_cache = _ScalarCache()
         self._scalar_tqdms = None
         self._es_handler = None
+        self._pbar = None
 
         if from_checkpoint is None:
             # start a new training process
@@ -187,6 +188,11 @@ class BaseTracker:
 
         self._evaluated = False
         return
+
+    @property
+    def pbar(self):
+        assert self._pbar is not None, 'Only available in tracker.range(...).'
+        return self._pbar
 
     @property
     def log_dir(self):
@@ -303,7 +309,7 @@ class BaseTracker:
         )
 
         with std_out_err_redirect_tqdm() as orig_stdout:
-            pbar = RangeTqdm(
+            self._pbar = RangeTqdm(
                 self.start_epoch,
                 to_epoch,
                 leave=True,
@@ -324,7 +330,7 @@ class BaseTracker:
                     disable=self.config.progress != "tqdm",
                     position=positions.get(2, None),
                 )
-            for epoch in pbar:
+            for epoch in self._pbar:
 
                 self._cur_epoch = epoch
                 self._evaluated = False
@@ -381,6 +387,7 @@ class BaseTracker:
                 ):
                     self._base_save(epoch, save_reason=save_reason)
 
+        self._pbar = None
         self._es_handler.close()
         self._scalar_tqdms.close()
         if self.config.progress == "plain":

@@ -4,7 +4,7 @@ from typing_extensions import deprecated
 
 from . import tracker
 from .config.utils import dump_config, load_env_file, strfconfig
-from .tracker.base.log import get_global, set_global
+from .tracker.base.log import get_global, set_global, global_params
 
 stdout = sys.stdout
 """A way to get original stdout which may be redirected to tqdm."""

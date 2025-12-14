@@ -178,7 +178,7 @@ def add_system_vars(system_vars: dict[str, str] | None):
         with StringIO() as stream:
             for k, v in system_vars.items():
                 print(f"{k}={v}", file=stream)
-            with open(file_path, encoding=encoding) as fin:
+            with open(file_path, encoding=encoding or "utf8") as fin:
                 stream.write(fin.read())
             stream.seek(0)
             file_vars = dotenv_values(
@@ -202,7 +202,7 @@ def add_system_vars(system_vars: dict[str, str] | None):
         with StringIO() as stream:
             for k, v in system_vars.items():
                 print(f"{k}={v}", file=stream)
-            with open(file_path, encoding=encoding) as fin:
+            with open(file_path, encoding=encoding or "utf8") as fin:
                 stream.write(fin.read())
             stream.seek(0)
             file_vars: dict[str, str | None] = dotenv_values(
